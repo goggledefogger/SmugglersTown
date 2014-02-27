@@ -36,15 +36,15 @@ function initialize() {
   //tryFindingLocation();
   var mapOptions = {
     zoom: 18,
-    minZoom: 18,
-    maxZoom: 18,
     center: mapCenter,
     keyboardShortcuts: false,
     mapTypeId: google.maps.MapTypeId.SATELLITE,
-    disableDefaultUI: true,
-    scrollwheel: false,
-    disableDoubleClickZoom: true,
-    draggable: false,
+    //disableDefaultUI: true,
+    //minZoom: 18,
+    //maxZoom: 18,
+    //scrollwheel: false,
+    //disableDoubleClickZoom: true,
+    //draggable: false,
   }
 
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
@@ -71,9 +71,27 @@ function loadMapData() {
     mapDataLoaded = true;
     mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
     map.setCenter(mapCenter);
+    randomlyPutItems();
   });
 }
 
+function randomlyPutItems() {
+  randomLat = getRandomInRange(mapCenter.lat() - 0.02, mapCenter.lat() + 0.02, 7);
+  randomLng = getRandomInRange(mapCenter.lng() - 0.02, mapCenter.lng() + 0.02, 7);
+  console.log(randomLat + ',' + randomLng);
+ var marker = new google.maps.Marker({
+      position: new google.maps.LatLng(randomLat, randomLng),
+      map: map,
+      title: 'Item'
+  });
+
+
+}
+
+function getRandomInRange(from, to, fixed) {
+    return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
+    // .toFixed() returns string, so ' * 1' is a trick to convert to number
+}
 
 function onKeyDown(evt) {
   if (evt.keyCode == 39) {
@@ -158,6 +176,7 @@ function moveCar() {
     newLong = map.getCenter().lng() + (horizontalSpeed / 500000);
     mapCenter = new google.maps.LatLng(newLat, newLong);
     map.setCenter(mapCenter);
+    
   }
 
   rotateCar();
