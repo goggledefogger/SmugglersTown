@@ -1,0 +1,9 @@
+{
+    "map": {
+        "name": "Grand Canyon",
+        "centerLatLng": {
+            "lat": 36.151103,
+            "lng": -113.208565
+        }
+    }
+}

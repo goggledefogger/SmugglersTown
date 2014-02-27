@@ -1,5 +1,7 @@
 console.log('loading js file');
-var map, markerImage;
+
+var map, markerImage, mapData;
+// default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 var now,
   dt = 0,
@@ -15,8 +17,11 @@ var markerIcon = {
 var maxSpeed = 15;
 var gear = 'forward';
 var rotationCss = '';
+var mapDataLoaded = false;
 
 function initialize() {
+
+  loadMapData();
 
   rightDown = false;
   leftDown = false;
@@ -55,6 +60,18 @@ function initialize() {
 
   // start the agame loop
   requestAnimationFrame(frame);
+}
+
+function loadMapData() {
+  mapDataLoaded = false;
+  console.log('loading map data');
+  $.getJSON("maps/grandcanyon.json", function(json) {
+    console.log('map data loaded');
+    mapData = json;
+    mapDataLoaded = true;
+    mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
+    map.setCenter(mapCenter);
+  });
 }
 
 
