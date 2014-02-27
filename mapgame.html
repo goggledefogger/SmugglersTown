@@ -10,6 +10,19 @@
         margin: 0px;
         padding: 0px
       }
+
+      #map-canvas { position: fixed;}
+
+      #car-img {
+          position: absolute;
+         top: 50%;
+         left: 50%;
+         width: 30px;
+         height: 60px;
+         margin-top: -30px; /* Half the height */
+         margin-left: -15px; /* Half the width */
+      }
+
     </style>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCRtN38lht5WghJBr0lq0LzpuCd-LKXPC8&v=3.exp&sensor=false"></script>
@@ -29,5 +42,7 @@ function mouseUp(e) {
   </head>
   <body style="margin-left: auto; margin-right: auto">
     <div id="map-canvas"></div>
+    <img id="car-img" src="images/car.png"/>
+    
   </body>
 </html>

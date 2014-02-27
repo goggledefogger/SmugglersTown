@@ -1,7 +1,5 @@
 console.log('loading js file');
-var map, markerImage, marker;
-// default starting spot is P Town
-var mapCenter = new google.maps.LatLng(45.543655, -122.770574);
+var map, markerImage;
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 var now,
   dt = 0,
@@ -14,8 +12,9 @@ var markerIcon = {
   scale: 3,
   rotation: rotation
 }
-var maxSpeed = 10;
+var maxSpeed = 15;
 var gear = 'forward';
+var rotationCss = '';
 
 function initialize() {
 
@@ -24,13 +23,16 @@ function initialize() {
   upDown = false;
   downDown = false;
   speed = 0;
+  rotation = 0;
   horizontalSpeed = 0;
+  rotationCss = '';
 
   console.log('init javascript in HTML');
   //tryFindingLocation();
   var mapOptions = {
     zoom: 18,
-    minZoom: 18, maxZoom: 18,
+    minZoom: 18,
+    maxZoom: 18,
     center: mapCenter,
     keyboardShortcuts: false,
     mapTypeId: google.maps.MapTypeId.SATELLITE,
@@ -45,35 +47,15 @@ function initialize() {
     contextmenu: true
   });
 
-
   // not necessary
   google.maps.event.addListener(map, "rightclick", showContextMenu);
-
-  markerImage = {
-    //url: 'images/car.png',
-    url: 'images/car.png',
-    size: new google.maps.Size(71, 71),
-    origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(0, 0),
-    scaledSize: new google.maps.Size(25, 25),
-  }
-
-  marker = new google.maps.Marker({
-    position: map.getCenter(),
-    map: map,
-    title: 'Car',
-    icon: markerIcon
-  });
-
-  marker.setPosition(map.getCenter());
 
   $(document).keydown(onKeyDown);
   $(document).keyup(onKeyUp);
 
-
+  // start the agame loop
   requestAnimationFrame(frame);
 }
-
 
 
 function onKeyDown(evt) {
@@ -90,7 +72,6 @@ function onKeyDown(evt) {
   }
 }
 
-//and unset them when the right or left key is released
 function onKeyUp(evt) {
   if (evt.keyCode == 39) {
     rightDown = false;
@@ -160,8 +141,18 @@ function moveCar() {
     newLong = map.getCenter().lng() + (horizontalSpeed / 500000);
     mapCenter = new google.maps.LatLng(newLat, newLong);
     map.setCenter(mapCenter);
-    marker.setPosition(mapCenter);
   }
+
+  rotateCar();
+}
+
+function rotateCar() {
+  rotation = getAngle(speed, horizontalSpeed);
+  rotationCss = '-ms-transform: rotate(' + rotation + 'deg); /* IE 9 */ -webkit-transform: rotate(' + rotation + 'deg); /* Chrome, Safari, Opera */ transform: rotate(' + rotation + 'deg);';
+}
+
+function getAngle(vx, vy) {
+  return (Math.atan2(vy, vx)) * (180 / Math.PI);
 }
 
 function update(step) {
@@ -169,7 +160,7 @@ function update(step) {
 }
 
 function render(dt) {
-
+  $("#car-img").attr("style", rotationCss);
 }
 
 function frame() {
@@ -192,7 +183,6 @@ function tryFindingLocation() {
         position.coords.longitude);
       map.setCenter(pos);
       mapCenter = pos;
-      marker.setPosition(pos);
     }, function() {
       handleNoGeolocation(true);
     });
