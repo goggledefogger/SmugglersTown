@@ -1,6 +1,6 @@
 console.log('loading js file');
 
-var map, markerImage, mapData;
+var map, markerImage, mapData, markerLatLng;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 var now,
@@ -17,7 +17,22 @@ var markerIcon = {
 var maxSpeed = 15;
 var gear = 'forward';
 var rotationCss = '';
+var arrowRotationCss = '';
 var mapDataLoaded = false;
+
+/** Converts numeric degrees to radians */
+if (typeof(Number.prototype.toRad) === "undefined") {
+  Number.prototype.toRad = function() {
+    return this * Math.PI / 180;
+  }
+}
+/** Converts numeric radians to degrees */
+if (typeof(Number.prototype.toDeg) === "undefined") {
+  Number.prototype.toDeg = function() {
+    return this * 180 / Math.PI;
+  }
+}
+
 
 function initialize() {
 
@@ -78,20 +93,43 @@ function loadMapData() {
 function randomlyPutItems() {
   randomLat = getRandomInRange(mapCenter.lat() - 0.02, mapCenter.lat() + 0.02, 7);
   randomLng = getRandomInRange(mapCenter.lng() - 0.02, mapCenter.lng() + 0.02, 7);
+  markerLatLng = new google.maps.LatLng(randomLat, randomLng);
   console.log(randomLat + ',' + randomLng);
- var marker = new google.maps.Marker({
-      position: new google.maps.LatLng(randomLat, randomLng),
-      map: map,
-      title: 'Item'
+  marker = new google.maps.Marker({
+    position: markerLatLng,
+    map: map,
+    title: 'Item'
   });
 
 
 }
 
 function getRandomInRange(from, to, fixed) {
-    return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
-    // .toFixed() returns string, so ' * 1' is a trick to convert to number
+  return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
+  // .toFixed() returns string, so ' * 1' is a trick to convert to number
 }
+
+function computeBearingAngle(lat1, lon1, lat2, lon2) {
+  var R = 6371; // km
+  var dLat = (lat2 - lat1).toRad();
+  var dLon = (lon2 - lon1).toRad();
+  var lat1 = lat1.toRad();
+  var lat2 = lat2.toRad();
+
+
+  var angleInRadians = Math.atan2(Math.sin(dLon) * Math.cos(lat2),
+                    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon));
+  return angleInRadians.toDeg();
+
+
+
+  // var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+  //   Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+  // var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // var d = R * c;
+  // return c.toDeg();
+}
+
 
 function onKeyDown(evt) {
   if (evt.keyCode == 39) {
@@ -176,15 +214,23 @@ function moveCar() {
     newLong = map.getCenter().lng() + (horizontalSpeed / 500000);
     mapCenter = new google.maps.LatLng(newLat, newLong);
     map.setCenter(mapCenter);
-    
+
   }
 
   rotateCar();
+  if (markerLatLng) {
+    rotateArrow();
+  }
 }
 
 function rotateCar() {
   rotation = getAngle(speed, horizontalSpeed);
   rotationCss = '-ms-transform: rotate(' + rotation + 'deg); /* IE 9 */ -webkit-transform: rotate(' + rotation + 'deg); /* Chrome, Safari, Opera */ transform: rotate(' + rotation + 'deg);';
+}
+
+function rotateArrow() {
+  arrowRotation = computeBearingAngle(mapCenter.lat(), mapCenter.lng(), markerLatLng.lat(), markerLatLng.lng());
+  arrowRotationCss = '-ms-transform: rotate(' + arrowRotation + 'deg); /* IE 9 */ -webkit-transform: rotate(' + arrowRotation + 'deg); /* Chrome, Safari, Opera */ transform: rotate(' + arrowRotation + 'deg);';
 }
 
 function getAngle(vx, vy) {
@@ -197,6 +243,7 @@ function update(step) {
 
 function render(dt) {
   $("#car-img").attr("style", rotationCss);
+  $("#arrow-img").attr("style", arrowRotationCss);
 }
 
 function frame() {
