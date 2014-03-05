@@ -1,8 +1,10 @@
 console.log('loading js file');
 
 var map, markerImage, mapData, markerLatLng;
+var marker = null;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
+var baseLatLng = new google.maps.LatLng(36.151103, -113.208565);
 var now,
   dt = 0,
   last = timestamp(),
@@ -20,6 +22,8 @@ var rotationCss = '';
 var arrowRotationCss = '';
 var mapDataLoaded = false;
 var collectedItem = null;
+var mapWidth = 0.004;
+var mapHeight = 0.004;
 
 /** Converts numeric degrees to radians */
 if (typeof(Number.prototype.toRad) === "undefined") {
@@ -87,21 +91,20 @@ function loadMapData() {
     mapDataLoaded = true;
     mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
     map.setCenter(mapCenter);
+    marker = new google.maps.Marker({
+      map: map,
+      title: 'Item'
+    });
     randomlyPutItems();
   });
 }
 
 function randomlyPutItems() {
-  randomLat = getRandomInRange(mapCenter.lat() - 0.02, mapCenter.lat() + 0.02, 7);
-  randomLng = getRandomInRange(mapCenter.lng() - 0.02, mapCenter.lng() + 0.02, 7);
+  randomLat = getRandomInRange(mapCenter.lat() - (mapWidth / 2.0), mapCenter.lat() + (mapWidth / 2.0), 7);
+  randomLng = getRandomInRange(mapCenter.lng() - (mapHeight / 2.0), mapCenter.lng() + (mapHeight / 2.0), 7);
   markerLatLng = new google.maps.LatLng(randomLat, randomLng);
   console.log(randomLat + ',' + randomLng);
-  marker = new google.maps.Marker({
-    position: markerLatLng,
-    map: map,
-    title: 'Item'
-  });
-
+  marker.setPosition(markerLatLng);
 
 }
 
@@ -119,7 +122,7 @@ function computeBearingAngle(lat1, lon1, lat2, lon2) {
 
 
   var angleInRadians = Math.atan2(Math.sin(dLon) * Math.cos(lat2),
-                    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon));
+    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon));
   return angleInRadians.toDeg();
 }
 
@@ -232,26 +235,32 @@ function getAngle(vx, vy) {
 
 function update(step) {
   moveCar();
-  if (collectedItem) {
-    // the car already has an item
-  } else {
-    collectedItem = getCollisionItem();
-    if (collectedItem) {
-      marker.setMap(null);
+  var collisionItem = getCollisionItem();
+  if (collisionItem) {
+    if (!collectedItem) {
+      collectedItem = collisionItem;
+      changeDestination(baseLatLng);
+    } else {
+      // user has an item and is back at the base
+      collectedItem = null;
+      randomlyPutItems();
     }
   }
 }
 
+function changeDestination(location) {
+  markerLatLng = location;
+  marker.setPosition(markerLatLng);
+}
+
 function getCollisionItem() {
   if (markerLatLng) {
-  var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, markerLatLng);
-  if (distance < 20) {
-    console.log(distance);
-    return marker;
-  } else {
-    return null;
+    var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, markerLatLng);
+    if (distance < 20) {
+      return marker;
+    }
   }
-}
+  return null;
 }
 
 function render(dt) {
