@@ -1,6 +1,9 @@
 console.log('loading js file');
 
-var map, markerImage, mapData, markerLatLng;
+var map,
+  markerImage,
+  mapData,
+  markerLatLng;
 var marker = null;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
@@ -11,19 +14,22 @@ var now,
   step = 1 / 60;
 var rotation = 0;
 var deceleration = 1.1;
-var markerIcon = {
-  path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-  scale: 3,
-  rotation: rotation
-}
 var maxSpeed = 15;
-var gear = 'forward';
 var rotationCss = '';
 var arrowRotationCss = '';
 var mapDataLoaded = false;
 var collectedItem = null;
 var mapWidth = 0.004;
 var mapHeight = 0.004;
+
+var itemIcon = {
+  path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+  scale: 10
+};
+var baseIcon = {
+  path: google.maps.SymbolPath.CIRCLE,
+  scale: 15
+};
 
 /** Converts numeric degrees to radians */
 if (typeof(Number.prototype.toRad) === "undefined") {
@@ -105,7 +111,8 @@ function randomlyPutItems() {
   markerLatLng = new google.maps.LatLng(randomLat, randomLng);
   console.log(randomLat + ',' + randomLng);
   marker.setPosition(markerLatLng);
-
+  marker.setIcon(itemIcon);
+  marker.setAnimation(google.maps.Animation.BOUNCE);
 }
 
 function getRandomInRange(from, to, fixed) {
@@ -134,10 +141,8 @@ function onKeyDown(evt) {
     leftDown = true;
   } else if (evt.keyCode == 38) {
     upDown = true;
-    gear = 'forward';
   } else if (evt.keyCode == 40) {
     downDown = true;
-    gear = 'reverse';
   }
 }
 
@@ -238,14 +243,25 @@ function update(step) {
   var collisionItem = getCollisionItem();
   if (collisionItem) {
     if (!collectedItem) {
-      collectedItem = collisionItem;
-      changeDestination(baseLatLng);
+      // user just picked up an item
+      userCollidedWithItem(collisionItem);
     } else {
       // user has an item and is back at the base
-      collectedItem = null;
-      randomlyPutItems();
+      userReturnedItemToBase();
     }
   }
+}
+
+function userReturnedItemToBase() {
+  collectedItem = null;
+  randomlyPutItems();
+}
+
+function userCollidedWithItem(collisionItem) {
+  collectedItem = collisionItem;
+  changeDestination(baseLatLng);
+  marker.setAnimation(null);
+  marker.setIcon(baseIcon);
 }
 
 function changeDestination(location) {
