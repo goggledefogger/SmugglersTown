@@ -19,6 +19,7 @@ var gear = 'forward';
 var rotationCss = '';
 var arrowRotationCss = '';
 var mapDataLoaded = false;
+var collectedItem = null;
 
 /** Converts numeric degrees to radians */
 if (typeof(Number.prototype.toRad) === "undefined") {
@@ -54,12 +55,12 @@ function initialize() {
     center: mapCenter,
     keyboardShortcuts: false,
     mapTypeId: google.maps.MapTypeId.SATELLITE,
-    //disableDefaultUI: true,
-    //minZoom: 18,
-    //maxZoom: 18,
-    //scrollwheel: false,
-    //disableDoubleClickZoom: true,
-    //draggable: false,
+    disableDefaultUI: true,
+    minZoom: 18,
+    maxZoom: 18,
+    scrollwheel: false,
+    disableDoubleClickZoom: true,
+    draggable: false,
   }
 
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
@@ -120,14 +121,6 @@ function computeBearingAngle(lat1, lon1, lat2, lon2) {
   var angleInRadians = Math.atan2(Math.sin(dLon) * Math.cos(lat2),
                     Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon));
   return angleInRadians.toDeg();
-
-
-
-  // var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-  //   Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
-  // var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  // var d = R * c;
-  // return c.toDeg();
 }
 
 
@@ -239,6 +232,26 @@ function getAngle(vx, vy) {
 
 function update(step) {
   moveCar();
+  if (collectedItem) {
+    // the car already has an item
+  } else {
+    collectedItem = getCollisionItem();
+    if (collectedItem) {
+      marker.setMap(null);
+    }
+  }
+}
+
+function getCollisionItem() {
+  if (markerLatLng) {
+  var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, markerLatLng);
+  if (distance < 20) {
+    console.log(distance);
+    return marker;
+  } else {
+    return null;
+  }
+}
 }
 
 function render(dt) {
