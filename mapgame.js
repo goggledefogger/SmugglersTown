@@ -4,7 +4,8 @@ var map,
   markerImage,
   mapData,
   markerLatLng;
-var marker = null;
+var itemMarker = null;
+var baseMarker = null;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 var baseLatLng = new google.maps.LatLng(36.151103, -113.208565);
@@ -21,11 +22,20 @@ var mapDataLoaded = false;
 var collectedItem = null;
 var mapWidth = 0.004;
 var mapHeight = 0.004;
+var otherCarLocation = null;
+var otherCarMarker = null;
+var userIdOfCarWithItem = null;
+var destination = null;
 
 var itemIcon = {
   path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
   scale: 10
 };
+var otherCarIcon = {
+  url: 'images/car_red.png',
+  origin: new google.maps.Point(0, 0),
+  anchor: new google.maps.Point(16, 32)
+}
 var baseIcon = {
   path: google.maps.SymbolPath.CIRCLE,
   scale: 15
@@ -44,6 +54,97 @@ if (typeof(Number.prototype.toDeg) === "undefined") {
   }
 }
 
+var peerJsConnection = null;
+var peer = new Peer({
+  key: 'j3m0qtddeshpk3xr'
+});
+peer.on('open', function(id) {
+  console.log('My peer ID is: ' + id);
+  $('#peer-id').text(id);
+  $('#peer-connection-status').text('no game joined');
+});
+peer.on('connection', connectedToPeer);
+
+function connectedToPeer(conn) {
+  console.log('connected to ' + conn.peer);
+  $('#peer-connection-status').text('connected to ' + conn.peer);
+  peerJsConnection = conn;
+  peerJsConnection.on('close', function() {
+    console.log('closing connection');
+    peerConnectionClosed();
+  });
+  peerJsConnection.on('data', function(data) {
+    dataReceived(data);
+  });
+}
+
+function peerConnectionClosed() {
+  otherCarMarker.setMap(null);
+}
+
+function otherUserCollectedItem(userId) {
+  console.log('other user collected item');
+  itemMarker.setMap(null);
+  baseMarker.setMap(map);
+  userIdOfCarWithItem = userId;
+}
+
+function dataReceived(data) {
+  if (data.event) {
+    if (data.event.name == 'item_collected') {
+      console.log('received event: item collected by ' + data.event.user_id_of_car_with_item);
+      if (data.event.user_id_of_car_with_item != peer.id) {
+        otherUserCollectedItem(data.event.user_id_of_car_with_item);
+      }
+    }
+    if (data.event.name == 'new_item') {
+      console.log('received event: new item');
+      userIdOfCarWithItem = null;
+      // Only update if someone else caused the new item placement.
+      // if this user did it, it was already placed
+      if (data.event.host_user != peer.id) {
+        markerLatLng = new google.maps.LatLng(data.event.location.lat, data.event.location.lng);
+        putNewItemOnMap(markerLatLng);
+      }
+
+    }
+    if (data.event.name == 'item_returned') {
+      console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item);
+      userIdOfCarWithItem = null;
+      if (data.event.user_id_of_car_that_returned_item != peer.id) {
+        baseMarker.setMap(null);
+      }
+    }
+  }
+  if (data.carLatLng) {
+    if (!otherCarLocation) {
+      otherCarMarker = new google.maps.Marker({
+        map: map,
+        title: 'Other Car',
+        icon: otherCarIcon
+      });
+    }
+    otherCarLocation = new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng);
+    moveOtherCar(otherCarLocation);
+  }
+}
+
+function moveOtherCar(location) {
+  otherCarMarker.setPosition(location);
+}
+
+function connectToPeer(peerId) {
+  console.log('trying to connect to ' + peerId);
+  $('#peer-connection-status').text('trying to connect to ' + peerId);
+  peerJsConnection = peer.connect(peerId);
+  peerJsConnection.on('open', function() {
+    console.log('connection open');
+    connectedToPeer(peerJsConnection);
+  });
+  peerJsConnection.on('error', function(err) {
+    alert(err);
+  });
+}
 
 function initialize() {
 
@@ -83,8 +184,13 @@ function initialize() {
 
   $(document).keydown(onKeyDown);
   $(document).keyup(onKeyUp);
+  $('#connect-button').click(function(evt) {
+    var peerId = $('#peer-id-textbox').val();
+    console.log('peer id connecting: ' + peerId);
+    connectToPeer(peerId);
+  });
 
-  // start the agame loop
+  // start the game loop
   requestAnimationFrame(frame);
 }
 
@@ -97,10 +203,16 @@ function loadMapData() {
     mapDataLoaded = true;
     mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
     map.setCenter(mapCenter);
-    marker = new google.maps.Marker({
+    itemMarker = new google.maps.Marker({
       map: map,
-      title: 'Item'
+      title: 'Item',
+      icon: itemIcon
     });
+    baseMarker = new google.maps.Marker({
+      title: 'Base',
+      position: baseLatLng,
+      icon: baseIcon
+    })
     randomlyPutItems();
   });
 }
@@ -108,12 +220,40 @@ function loadMapData() {
 function randomlyPutItems() {
   randomLat = getRandomInRange(mapCenter.lat() - (mapWidth / 2.0), mapCenter.lat() + (mapWidth / 2.0), 7);
   randomLng = getRandomInRange(mapCenter.lng() - (mapHeight / 2.0), mapCenter.lng() + (mapHeight / 2.0), 7);
-  markerLatLng = new google.maps.LatLng(randomLat, randomLng);
   console.log(randomLat + ',' + randomLng);
-  marker.setPosition(markerLatLng);
-  marker.setIcon(itemIcon);
-  marker.setAnimation(google.maps.Animation.BOUNCE);
+  var randomLocation = new google.maps.LatLng(randomLat, randomLng)
+  putNewItemOnMap(randomLocation);
+  broadcastNewItem(randomLocation);
 }
+
+function putNewItemOnMap(location) {
+  markerLatLng = location
+  itemMarker.setMap(map);
+  itemMarker.setPosition(markerLatLng);
+  itemMarker.setAnimation(google.maps.Animation.BOUNCE);
+  destination = markerLatLng;
+}
+
+function broadcastNewItem(location) {
+  if (peerJsConnection && peerJsConnection.open) {
+    var simpleItemLatLng = {
+      lat: location.lat(),
+      lng: location.lng()
+    };
+
+    peerJsConnection.send({
+      event: {
+        name: 'new_item',
+        hose_user: peer.id,
+        location: {
+          lat: simpleItemLatLng.lat,
+          lng: simpleItemLatLng.lng
+        }
+      }
+    });
+  }
+}
+
 
 function getRandomInRange(from, to, fixed) {
   return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
@@ -230,7 +370,7 @@ function rotateCar() {
 }
 
 function rotateArrow() {
-  arrowRotation = computeBearingAngle(mapCenter.lat(), mapCenter.lng(), markerLatLng.lat(), markerLatLng.lng());
+  arrowRotation = computeBearingAngle(mapCenter.lat(), mapCenter.lng(), destination.lat(), destination.lng());
   arrowRotationCss = '-ms-transform: rotate(' + arrowRotation + 'deg); /* IE 9 */ -webkit-transform: rotate(' + arrowRotation + 'deg); /* Chrome, Safari, Opera */ transform: rotate(' + arrowRotation + 'deg);';
 }
 
@@ -240,40 +380,89 @@ function getAngle(vx, vy) {
 
 function update(step) {
   moveCar();
+  // if another user has an item, constantly set the destination to their location
+  if (userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
+    destination = otherCarLocation;
+  }
   var collisionItem = getCollisionItem();
   if (collisionItem) {
-    if (!collectedItem) {
+    if (!collectedItem && collisionItem == itemMarker) {
       // user just picked up an item
       userCollidedWithItem(collisionItem);
-    } else {
+    } else if (collectedItem && collisionItem == baseMarker) {
       // user has an item and is back at the base
       userReturnedItemToBase();
     }
+  }
+  broadcastGameData();
+}
+
+function broadcastGameData() {
+  if (peerJsConnection && peerJsConnection.open && mapCenter) {
+    peerJsConnection.send({
+      carLatLng: {
+        lat: mapCenter.lat(),
+        lng: mapCenter.lng()
+      }
+    });
   }
 }
 
 function userReturnedItemToBase() {
   collectedItem = null;
+  broadcastItemReturned(peer.id);
   randomlyPutItems();
+  baseMarker.setMap(null);
 }
 
 function userCollidedWithItem(collisionItem) {
+  broadcastItemCollected();
   collectedItem = collisionItem;
-  changeDestination(baseLatLng);
-  marker.setAnimation(null);
-  marker.setIcon(baseIcon);
+  itemMarker.setMap(null);
+  baseMarker.setMap(map);
+  destination = baseLatLng;
 }
 
-function changeDestination(location) {
-  markerLatLng = location;
-  marker.setPosition(markerLatLng);
+function broadcastItemReturned() {
+  console.log('broadcasting item returned');
+  if (!peerJsConnection || !peerJsConnection.open) {
+    return;
+  }
+  peerJsConnection.send({
+    event: {
+      name: 'item_returned',
+      user_id_of_car_that_returned_item: peer.id
+    }
+  });
+}
+
+function broadcastItemCollected() {
+  console.log('broadcasting item collected by user ' + peer.id);
+  if (!peerJsConnection || !peerJsConnection.open) {
+    return;
+  }
+  userIdOfCarWithItem = peer.id;
+  peerJsConnection.send({
+    event: {
+      name: 'item_collected',
+      user_id_of_car_with_item: userIdOfCarWithItem
+    }
+  });
 }
 
 function getCollisionItem() {
-  if (markerLatLng) {
-    var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, markerLatLng);
+  if (destination) {
+    var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
     if (distance < 20) {
-      return marker;
+      if (destination == markerLatLng) {
+        console.log('user ' + peer.id + ' collided with item');
+        return itemMarker;
+      } else if (destination == baseLatLng) {
+        if (collectedItem) {
+          console.log('user ' + peer.id + ' has an item and collided with base');
+        }
+        return baseMarker;
+      }
     }
   }
   return null;
