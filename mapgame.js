@@ -21,10 +21,12 @@ var rotationCss = '';
 var arrowRotationCss = '';
 var mapDataLoaded = false;
 var collectedItem = null;
+var numItemsCollected = 0;
 var mapWidth = 0.004;
 var mapHeight = 0.004;
 var otherCarLocation = null;
 var otherCarMarker = null;
+var otherUserNumItems = 0;
 var userIdOfCarWithItem = null;
 var destination = null;
 var timeDelayBetweenTransfers = 1000; // in ms
@@ -280,16 +282,19 @@ function dataReceived(data) {
 
     }
     if (data.event.name == 'item_returned') {
-      console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item);
+      console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item + ' which gives them ' + data.event.now_num_items);
       userIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
         baseMarker.setMap(null);
+        otherUserReturnedItem(data.event.now_num_items);
       }
     }
     if (data.event.name == 'item_transferred') {
       console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
       if (data.event.toUserPeerId == peer.id) {
         // the item was transferred to this user
+        $('#num-items-collected').parent().css("color", "blue");
+        $('#num-items-opponent-collected').parent().css("color", "black");
         itemObject = {
           id: data.event.id,
           marker: null
@@ -313,6 +318,14 @@ function dataReceived(data) {
     otherCarLocation = new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng);
     moveOtherCar(otherCarLocation, data.peerId);
   }
+}
+
+function otherUserReturnedItem(nowNumItemsForUser) {
+  otherUserNumItems = nowNumItemsForUser;
+  $('#num-items-opponent-collected').text(otherUserNumItems);
+  flashElement($('#num-items-opponent-collected'));
+  $('#num-items-collected').parent().css("color", "black");
+  $('#num-items-opponent-collected').parent().css("color", "black");
 }
 
 function moveOtherCar(location, otherUserPeerId) {
@@ -351,19 +364,35 @@ function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
   broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
   collectedItem = null;
   userIdOfCarWithItem = toUserPeerId;
+  $('#num-items-collected').parent().css("color", "black");
+  $('#num-items-opponent-collected').parent().css("color", "blue");
 }
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
+  $('#num-items-opponent-collected').parent().css("color", "blue");
   itemMarker.setMap(null);
   baseMarker.setMap(map);
   userIdOfCarWithItem = userId;
 }
 
 function userReturnedItemToBase() {
+  incrementItemCount();
   collectedItem = null;
   randomlyPutItems();
   baseMarker.setMap(null);
+}
+
+function incrementItemCount() {
+  numItemsCollected++;
+  $('#num-items-collected').text(numItemsCollected);
+  flashElement($('#num-items-collected'));
+  $('#num-items-collected').parent().css("color", "black");
+  $('#num-items-opponent-collected').parent().css("color", "black");
+}
+
+function flashElement(jqueryElem) {
+  jqueryElem.fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100).fadeOut(100).fadeIn(100);
 }
 
 function userCollidedWithItem(collisionItemObject) {
@@ -394,6 +423,7 @@ function update(step) {
   if (collisionMarker) {
     if (!collectedItem && collisionMarker == itemMarker) {
       // user just picked up an item
+      $('#num-items-collected').parent().css("color", "blue");
       userCollidedWithItem(itemObject);
       broadcastItemCollected(itemObject.id);
     } else if (collectedItem && collisionMarker == baseMarker) {
@@ -446,7 +476,8 @@ function broadcastItemReturned() {
   peerJsConnection.send({
     event: {
       name: 'item_returned',
-      user_id_of_car_that_returned_item: peer.id
+      user_id_of_car_that_returned_item: peer.id,
+      now_num_items: numItemsCollected,
     }
   });
 }

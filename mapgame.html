@@ -44,6 +44,8 @@
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCRtN38lht5WghJBr0lq0LzpuCd-LKXPC8&v=3.exp&sensor=false&libraries=geometry"></script>
     <script src="src/CanvasLayer.js"></script>
     <script src="mapgame.js" type="text/javascript"></script>
+    <link rel="stylesheet" href="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/themes/smoothness/jquery-ui.css" />
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.4/jquery-ui.min.js"></script>
     <script>
 
 google.maps.event.addDomListener(window, 'load', initialize);
@@ -58,11 +60,14 @@ function mouseUp(e) {
   </head>
   <body style="margin-left: auto; margin-right: auto">
     <table height="100%" width="100%">
-      <tr height="10px"><td>
-    <input type="text" id="peer-id-textbox"></input>
-    <input type="button" id="connect-button" value="connect"/>
-    <span id="peer-id">(no peer id yet)</span>
-    <span id="peer-connection-status" style="color: red;">Getting peer id...</span>
+      <tr height="10px"><td><table border="1"><tr><td>
+    <input type="text" id="peer-id-textbox"></input></td><td>
+    <input type="button" id="connect-button" value="connect"/></td><td>
+    <span>Peer ID: <span id="peer-id">(no peer id yet)</span></span></td><td>
+    <span>STATUS: <span id="peer-connection-status" style="color: red;">Getting peer id...</span></span></td><td>
+    <span>You collected: <span id="num-items-collected">0</span></span></td><td>
+    <span>Opponent collected: <span id="num-items-opponent-collected">0</span></span></td>
+  </tr></table>
   </td>
 </tr><tr><td>
     <div id="map-canvas"></div>
