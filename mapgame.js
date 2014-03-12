@@ -5,6 +5,7 @@ var markerImage;
 var mapData;
 var markerLatLng;
 var itemMarker = null;
+var itemObject = null;
 var baseMarker = null;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
@@ -26,6 +27,8 @@ var otherCarLocation = null;
 var otherCarMarker = null;
 var userIdOfCarWithItem = null;
 var destination = null;
+var timeDelayBetweenTransfers = 1000; // in ms
+var timeOfLastTransfer = null;
 
 var itemIcon = {
   path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
@@ -143,11 +146,12 @@ function randomlyPutItems() {
   randomLng = getRandomInRange(mapCenter.lng() - (mapHeight / 2.0), mapCenter.lng() + (mapHeight / 2.0), 7);
   console.log(randomLat + ',' + randomLng);
   var randomLocation = new google.maps.LatLng(randomLat, randomLng)
-  putNewItemOnMap(randomLocation);
-  broadcastNewItem(randomLocation);
+  var itemId = getRandomInRange(1, 1000000, 0);
+  putNewItemOnMap(randomLocation, itemId);
+  broadcastNewItem(randomLocation, itemId);
 }
 
-function putNewItemOnMap(location) {
+function putNewItemOnMap(location, itemId) {
   // eventually this should be redundant to clear this, but while
   // there's a bug on multiplayer joining, clear it again
   collectedItem = null;
@@ -158,8 +162,12 @@ function putNewItemOnMap(location) {
   itemMarker.setPosition(markerLatLng);
   itemMarker.setAnimation(google.maps.Animation.BOUNCE);
   destination = markerLatLng;
+  itemObject = {
+    id: itemId,
+    marker: itemMarker
+  };
+  return itemId;
 }
-
 
 function moveCar() {
   // if Up or Down key is pressed, change the speed. Otherwise,
@@ -204,7 +212,6 @@ function moveCar() {
       horizontalSpeed /= deceleration;
     }
   }
-
 
   // optimization - only if the car is moving should we spend
   // time resetting the map
@@ -262,13 +269,13 @@ function dataReceived(data) {
       }
     }
     if (data.event.name == 'new_item') {
-      console.log('received event: new item');
+      console.log('received event: new item with id ' + data.event.id);
       userIdOfCarWithItem = null;
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
       if (data.event.host_user != peer.id) {
         markerLatLng = new google.maps.LatLng(data.event.location.lat, data.event.location.lng);
-        putNewItemOnMap(markerLatLng);
+        putNewItemOnMap(markerLatLng, data.event.id);
       }
 
     }
@@ -279,7 +286,22 @@ function dataReceived(data) {
         baseMarker.setMap(null);
       }
     }
+    if (data.event.name == 'item_transferred') {
+      console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
+      if (data.event.toUserPeerId == peer.id) {
+        // the item was transferred to this user
+        itemObject = {
+          id: data.event.id,
+          marker: null
+        };
+        timeOfLastTransfer = (new Date()).getTime();
+        console.log('someone transferred to me at ' + timeOfLastTransfer);
+        userIdOfCarWithItem = data.event.toUserPeerId;
+        userCollidedWithItem(itemObject);
+      }
+    }
   }
+
   if (data.carLatLng) {
     if (!otherCarLocation) {
       otherCarMarker = new google.maps.Marker({
@@ -289,12 +311,46 @@ function dataReceived(data) {
       });
     }
     otherCarLocation = new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng);
-    moveOtherCar(otherCarLocation);
+    moveOtherCar(otherCarLocation, data.peerId);
   }
 }
 
-function moveOtherCar(location) {
+function moveOtherCar(location, otherUserPeerId) {
+  checkForCarCollision(location, otherUserPeerId);
   otherCarMarker.setPosition(location);
+}
+
+function checkForCarCollision(otherCarLocation, otherUserPeerId) {
+  // if this isn't the user with the item, then ignore it. We'll only
+  // transfer an item from the perspected of the user with the item
+  if (!collectedItem) {
+    return;
+  }
+  if (timeOfLastTransfer) {
+    var timeSinceLastTransfer = ((new Date()).getTime()) - timeOfLastTransfer;
+    // if not enough time has passed since the last transfer, return
+    if (timeSinceLastTransfer < timeDelayBetweenTransfers) {
+      return;
+    } else {
+      // optimization: reset this so we don't waste time calculating in the future
+      timeOfLastTransfer = null;
+    }
+  }
+
+  var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, otherCarLocation);
+  // if this user (that has the item) is close enough to call it a
+  // collision, transfer it to the other user
+  if (distance < 20) {
+    transferItem(collectedItem.id, peer.id, otherUserPeerId);
+  }
+}
+
+function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
+  console.log('item ' + itemObjectId + ' transferred from ' + fromUserPeerId + ' to ' + toUserPeerId);
+  timeOfLastTransfer = (new Date()).getTime();
+  broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
+  collectedItem = null;
+  userIdOfCarWithItem = toUserPeerId;
 }
 
 function otherUserCollectedItem(userId) {
@@ -306,19 +362,17 @@ function otherUserCollectedItem(userId) {
 
 function userReturnedItemToBase() {
   collectedItem = null;
-  broadcastItemReturned(peer.id);
   randomlyPutItems();
   baseMarker.setMap(null);
 }
 
-function userCollidedWithItem(collisionItem) {
-  broadcastItemCollected();
-  collectedItem = collisionItem;
+function userCollidedWithItem(collisionItemObject) {
+  collectedItem = collisionItemObject;
   itemMarker.setMap(null);
   baseMarker.setMap(map);
+  itemObject.marker = null;
   destination = baseLatLng;
 }
-
 
 function rotateCar() {
   rotation = getAngle(speed, horizontalSpeed);
@@ -333,34 +387,37 @@ function rotateArrow() {
 function update(step) {
   moveCar();
   // if another user has an item, constantly set the destination to their location
-  if (userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
+  if (!collectedItem && userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
     destination = otherCarLocation;
   }
-  var collisionItem = getCollisionItem();
-  if (collisionItem) {
-    if (!collectedItem && collisionItem == itemMarker) {
+  var collisionMarker = getCollisionMarker();
+  if (collisionMarker) {
+    if (!collectedItem && collisionMarker == itemMarker) {
       // user just picked up an item
-      userCollidedWithItem(collisionItem);
-    } else if (collectedItem && collisionItem == baseMarker) {
+      userCollidedWithItem(itemObject);
+      broadcastItemCollected(itemObject.id);
+    } else if (collectedItem && collisionMarker == baseMarker) {
       // user has an item and is back at the base
       userReturnedItemToBase();
+      broadcastItemReturned(peer.id);
     }
   }
-  broadcastGameData();
+  broadcastMyCarLocation();
 }
 
-function broadcastGameData() {
+function broadcastMyCarLocation() {
   if (peerJsConnection && peerJsConnection.open && mapCenter) {
     peerJsConnection.send({
       carLatLng: {
         lat: mapCenter.lat(),
         lng: mapCenter.lng()
-      }
+      },
+      peerId: peer.id
     });
   }
 }
 
-function broadcastNewItem(location) {
+function broadcastNewItem(location, itemId) {
   if (peerJsConnection && peerJsConnection.open) {
     var simpleItemLatLng = {
       lat: location.lat(),
@@ -374,7 +431,8 @@ function broadcastNewItem(location) {
         location: {
           lat: simpleItemLatLng.lat,
           lng: simpleItemLatLng.lng
-        }
+        },
+        id: itemId
       }
     });
   }
@@ -393,8 +451,8 @@ function broadcastItemReturned() {
   });
 }
 
-function broadcastItemCollected() {
-  console.log('broadcasting item collected by user ' + peer.id);
+function broadcastItemCollected(itemId) {
+  console.log('broadcasting item id ' + itemId + ' collected by user ' + peer.id);
   if (!peerJsConnection || !peerJsConnection.open) {
     return;
   }
@@ -402,12 +460,28 @@ function broadcastItemCollected() {
   peerJsConnection.send({
     event: {
       name: 'item_collected',
+      id: itemId,
       user_id_of_car_with_item: userIdOfCarWithItem
     }
   });
 }
 
-function getCollisionItem() {
+function broadcastTransferOfItem(itemId, fromUserPeerId, toUserPeerId) {
+  console.log('broadcasting item transferred ' + itemId + ' from ' + fromUserPeerId + ' to ' + toUserPeerId);
+  if (!peerJsConnection || !peerJsConnection.open) {
+    return;
+  }
+  peerJsConnection.send({
+    event: {
+      name: 'item_transferred',
+      id: itemId,
+      fromUserPeerId: fromUserPeerId,
+      toUserPeerId: toUserPeerId
+    }
+  });
+}
+
+function getCollisionMarker() {
   if (destination) {
     var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
     if (distance < 20) {
