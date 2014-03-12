@@ -148,6 +148,11 @@ function randomlyPutItems() {
 }
 
 function putNewItemOnMap(location) {
+  // eventually this should be redundant to clear this, but while
+  // there's a bug on multiplayer joining, clear it again
+  collectedItem = null;
+  baseMarker.setMap(null);
+
   markerLatLng = location
   itemMarker.setMap(map);
   itemMarker.setPosition(markerLatLng);
@@ -241,6 +246,7 @@ function connectedToPeer(conn) {
   peerJsConnection.on('data', function(data) {
     dataReceived(data);
   });
+  randomlyPutItems();
 }
 
 function peerConnectionClosed() {

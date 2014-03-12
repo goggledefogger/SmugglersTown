@@ -32,6 +32,10 @@
          margin-left: -30px;
       }
 
+      #peer-id {
+        font-family:monospace;
+        font-weight:bold;
+      }
       
 
     </style>
@@ -53,13 +57,17 @@ function mouseUp(e) {
     </script>
   </head>
   <body style="margin-left: auto; margin-right: auto">
+    <table height="100%" width="100%">
+      <tr height="10px"><td>
     <input type="text" id="peer-id-textbox"></input>
     <input type="button" id="connect-button" value="connect"/>
     <span id="peer-id">(no peer id yet)</span>
     <span id="peer-connection-status" style="color: red;">Getting peer id...</span>
+  </td>
+</tr><tr><td>
     <div id="map-canvas"></div>
     <img id="car-img" src="images/car.png"/>
     <img id="arrow-img" src="images/arrow.png"/>
-    
+    </td></tr></table>
   </body>
 </html>
