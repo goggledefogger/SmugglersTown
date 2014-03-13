@@ -22,8 +22,8 @@ var arrowRotationCss = '';
 var mapDataLoaded = false;
 var collectedItem = null;
 var numItemsCollected = 0;
-var mapWidth = 0.004;
-var mapHeight = 0.004;
+var widthOfAreaToPutItems = 0.008; // in latitude degrees
+var heightOfAreaToPutItems = 0.008; // in longitude degrees
 var otherCarLocation = null;
 var otherCarMarker = null;
 var otherUserNumItems = 0;
@@ -36,6 +36,7 @@ var itemIcon = {
   path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
   scale: 10
 };
+
 var otherCarIcon = {
   url: 'images/car_red.png',
   origin: new google.maps.Point(0, 0),
@@ -115,9 +116,21 @@ function initialize() {
     console.log('peer id connecting: ' + peerId);
     connectToPeer(peerId);
   });
+  $('#set-center-button').click(function(evt) {
+    var searchTerm = $('#map-center-textbox').val();
+    if (!searchTerm) {
+      return;
+    }
+    console.log('setting center to: ' + searchTerm);
+    searchAndCenterMap(searchTerm);
+  });
 
   // start the game loop
   requestAnimationFrame(frame);
+}
+
+function searchAndCenterMap(searchTerm) {
+
 }
 
 function loadMapData() {
@@ -144,8 +157,8 @@ function loadMapData() {
 }
 
 function randomlyPutItems() {
-  randomLat = getRandomInRange(mapCenter.lat() - (mapWidth / 2.0), mapCenter.lat() + (mapWidth / 2.0), 7);
-  randomLng = getRandomInRange(mapCenter.lng() - (mapHeight / 2.0), mapCenter.lng() + (mapHeight / 2.0), 7);
+  randomLat = getRandomInRange(mapCenter.lat() - (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
+  randomLng = getRandomInRange(mapCenter.lng() - (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
   console.log(randomLat + ',' + randomLng);
   var randomLocation = new google.maps.LatLng(randomLat, randomLng)
   var itemId = getRandomInRange(1, 1000000, 0);
@@ -273,6 +286,7 @@ function dataReceived(data) {
     if (data.event.name == 'new_item') {
       console.log('received event: new item with id ' + data.event.id);
       userIdOfCarWithItem = null;
+      $("#arrow-img").attr('src', 'images/arrow.png');
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
       if (data.event.host_user != peer.id) {
@@ -293,8 +307,7 @@ function dataReceived(data) {
       console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
       if (data.event.toUserPeerId == peer.id) {
         // the item was transferred to this user
-        $('#num-items-collected').parent().css("color", "blue");
-        $('#num-items-opponent-collected').parent().css("color", "black");
+        $("#arrow-img").attr('src', 'images/arrow_blue.png');
         itemObject = {
           id: data.event.id,
           marker: null
@@ -321,11 +334,10 @@ function dataReceived(data) {
 }
 
 function otherUserReturnedItem(nowNumItemsForUser) {
+  $("#arrow-img").attr('src', 'images/arrow.png');
   otherUserNumItems = nowNumItemsForUser;
   $('#num-items-opponent-collected').text(otherUserNumItems);
   flashElement($('#num-items-opponent-collected'));
-  $('#num-items-collected').parent().css("color", "black");
-  $('#num-items-opponent-collected').parent().css("color", "black");
 }
 
 function moveOtherCar(location, otherUserPeerId) {
@@ -364,19 +376,19 @@ function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
   broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
   collectedItem = null;
   userIdOfCarWithItem = toUserPeerId;
-  $('#num-items-collected').parent().css("color", "black");
-  $('#num-items-opponent-collected').parent().css("color", "blue");
+  $("#arrow-img").attr('src', 'images/arrow_red.png');
 }
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
-  $('#num-items-opponent-collected').parent().css("color", "blue");
+  $("#arrow-img").attr('src', 'images/arrow_red.png');
   itemMarker.setMap(null);
   baseMarker.setMap(map);
   userIdOfCarWithItem = userId;
 }
 
 function userReturnedItemToBase() {
+  $("#arrow-img").attr('src', 'images/arrow.png');
   incrementItemCount();
   collectedItem = null;
   randomlyPutItems();
@@ -387,8 +399,6 @@ function incrementItemCount() {
   numItemsCollected++;
   $('#num-items-collected').text(numItemsCollected);
   flashElement($('#num-items-collected'));
-  $('#num-items-collected').parent().css("color", "black");
-  $('#num-items-opponent-collected').parent().css("color", "black");
 }
 
 function flashElement(jqueryElem) {
@@ -423,7 +433,7 @@ function update(step) {
   if (collisionMarker) {
     if (!collectedItem && collisionMarker == itemMarker) {
       // user just picked up an item
-      $('#num-items-collected').parent().css("color", "blue");
+      $("#arrow-img").attr('src', 'images/arrow_blue.png');
       userCollidedWithItem(itemObject);
       broadcastItemCollected(itemObject.id);
     } else if (collectedItem && collisionMarker == baseMarker) {
