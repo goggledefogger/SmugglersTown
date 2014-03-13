@@ -9,7 +9,7 @@ var itemObject = null;
 var baseMarker = null;
 // default to the grand canyon, but this should be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
-var baseLatLng = new google.maps.LatLng(36.151103, -113.208565);
+var baseLatLng = mapCenter;
 var now;
 var dt = 0;
 var last = timestamp();
@@ -74,7 +74,6 @@ peer.on('connection', connectedToPeer);
 
 
 function initialize() {
-
   loadMapData();
 
   rightDown = false;
@@ -122,7 +121,9 @@ function initialize() {
       return;
     }
     console.log('setting center to: ' + searchTerm);
-    searchAndCenterMap(searchTerm);
+    newLocation = searchAndCenterMap(searchTerm);
+    broadcastNewLocation(newLocation);
+    randomlyPutItems();
   });
 
   // start the game loop
@@ -130,7 +131,16 @@ function initialize() {
 }
 
 function searchAndCenterMap(searchTerm) {
-
+  var parts = searchTerm.split(',');
+  if (!parts) {
+    // bad search input, must be in lat,lng form
+    return;
+  }
+  var latString = parts[0];
+  var lngString = parts[1];
+  var location = new google.maps.LatLng(latString, lngString);
+  setGameToNewLocation(location);
+  return location;
 }
 
 function loadMapData() {
@@ -232,8 +242,8 @@ function moveCar() {
   // time resetting the map
   if (speed != 0 || horizontalSpeed != 0) {
     newLat = map.getCenter().lat() + (speed / 1000000);
-    newLong = map.getCenter().lng() + (horizontalSpeed / 500000);
-    mapCenter = new google.maps.LatLng(newLat, newLong);
+    newLng = map.getCenter().lng() + (horizontalSpeed / 500000);
+    mapCenter = new google.maps.LatLng(newLat, newLng);
     map.setCenter(mapCenter);
 
   }
@@ -277,11 +287,21 @@ function peerConnectionClosed() {
 
 function fadeArrowToImage(imageFileName) {
   $("#arrow-img").attr('src', 'images/' + imageFileName);
+}
 
+function otherUserChangedLocation(location) {
+  setGameToNewLocation(location);
 }
 
 function dataReceived(data) {
   if (data.event) {
+    if (data.event.name == 'new_location') {
+      console.log('received event: new location ' + data.event.lat + ',' + data.event.lng);
+      if (data.event.originating_peer_id != peer.id) {
+        otherUserChangedLocation(new google.maps.LatLng(data.event.lat, data.event.lng));
+        return;
+      }
+    }
     if (data.event.name == 'item_collected') {
       console.log('received event: item collected by ' + data.event.user_id_of_car_with_item);
       if (data.event.user_id_of_car_with_item != peer.id) {
@@ -527,6 +547,21 @@ function broadcastTransferOfItem(itemId, fromUserPeerId, toUserPeerId) {
   });
 }
 
+function broadcastNewLocation(location) {
+  console.log('broadcasting new location: ' + location.lat() + ',' + location.lng());
+  if (!peerJsConnection || !peerJsConnection.open) {
+    return;
+  }
+  peerJsConnection.send({
+    event: {
+      name: 'new_location',
+      lat: location.lat(),
+      lng: location.lng(),
+      originating_peer_id: peer.id
+    }
+  });
+}
+
 function getCollisionMarker() {
   if (destination) {
     var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
@@ -543,6 +578,13 @@ function getCollisionMarker() {
     }
   }
   return null;
+}
+
+function setGameToNewLocation(location) {
+  baseLatLng = location;
+  baseMarker.setPosition(baseLatLng);
+  mapCenter = baseLatLng;
+  map.setCenter(mapCenter);
 }
 
 function getRandomInRange(from, to, fixed) {
