@@ -275,6 +275,11 @@ function peerConnectionClosed() {
   otherCarMarker.setMap(null);
 }
 
+function fadeArrowToImage(imageFileName) {
+  $("#arrow-img").attr('src', 'images/' + imageFileName);
+
+}
+
 function dataReceived(data) {
   if (data.event) {
     if (data.event.name == 'item_collected') {
@@ -286,7 +291,7 @@ function dataReceived(data) {
     if (data.event.name == 'new_item') {
       console.log('received event: new item with id ' + data.event.id);
       userIdOfCarWithItem = null;
-      $("#arrow-img").attr('src', 'images/arrow.png');
+      fadeArrowToImage('arrow.png');
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
       if (data.event.host_user != peer.id) {
@@ -307,7 +312,7 @@ function dataReceived(data) {
       console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
       if (data.event.toUserPeerId == peer.id) {
         // the item was transferred to this user
-        $("#arrow-img").attr('src', 'images/arrow_blue.png');
+        fadeArrowToImage('arrow_blue.png');
         itemObject = {
           id: data.event.id,
           marker: null
@@ -334,7 +339,7 @@ function dataReceived(data) {
 }
 
 function otherUserReturnedItem(nowNumItemsForUser) {
-  $("#arrow-img").attr('src', 'images/arrow.png');
+  fadeArrowToImage('arrow.png');
   otherUserNumItems = nowNumItemsForUser;
   $('#num-items-opponent-collected').text(otherUserNumItems);
   flashElement($('#num-items-opponent-collected'));
@@ -376,19 +381,19 @@ function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
   broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
   collectedItem = null;
   userIdOfCarWithItem = toUserPeerId;
-  $("#arrow-img").attr('src', 'images/arrow_red.png');
+  fadeArrowToImage('arrow_red.png');
 }
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
-  $("#arrow-img").attr('src', 'images/arrow_red.png');
+  fadeArrowToImage('arrow_red.png');
   itemMarker.setMap(null);
   baseMarker.setMap(map);
   userIdOfCarWithItem = userId;
 }
 
 function userReturnedItemToBase() {
-  $("#arrow-img").attr('src', 'images/arrow.png');
+  fadeArrowToImage('arrow.png');
   incrementItemCount();
   collectedItem = null;
   randomlyPutItems();
@@ -433,7 +438,7 @@ function update(step) {
   if (collisionMarker) {
     if (!collectedItem && collisionMarker == itemMarker) {
       // user just picked up an item
-      $("#arrow-img").attr('src', 'images/arrow_blue.png');
+      fadeArrowToImage('arrow_blue.png');
       userCollidedWithItem(itemObject);
       broadcastItemCollected(itemObject.id);
     } else if (collectedItem && collisionMarker == baseMarker) {
