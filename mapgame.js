@@ -33,18 +33,25 @@ var timeDelayBetweenTransfers = 1000; // in ms
 var timeOfLastTransfer = null;
 
 var itemIcon = {
-  path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-  scale: 10
+  url: 'images/smoking_toilet_small.gif'
 };
 
 var otherCarIcon = {
   url: 'images/car_red.png',
   origin: new google.maps.Point(0, 0),
   anchor: new google.maps.Point(16, 32)
-}
+};
+
 var baseIcon = {
-  path: google.maps.SymbolPath.CIRCLE,
-  scale: 15
+  url: 'images/fort.png',
+  origin: new google.maps.Point(0, 0),
+  anchor: new google.maps.Point(75, 120)
+};
+
+var baseTransparentIcon = {
+  url: 'images/fort_transparent.png',
+  origin: new google.maps.Point(0, 0),
+  anchor: new google.maps.Point(75, 120)
 };
 
 /** Adds to the Number prototye: Converts numeric degrees to radians */
@@ -155,10 +162,12 @@ function loadMapData() {
     itemMarker = new google.maps.Marker({
       map: map,
       title: 'Item',
-      icon: itemIcon
+      icon: itemIcon,
+      optimized: false
     });
     baseMarker = new google.maps.Marker({
       title: 'Base',
+      map: map,
       position: baseLatLng,
       icon: baseIcon
     })
@@ -167,25 +176,37 @@ function loadMapData() {
 }
 
 function randomlyPutItems() {
-  randomLat = getRandomInRange(mapCenter.lat() - (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
-  randomLng = getRandomInRange(mapCenter.lng() - (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
-  console.log(randomLat + ',' + randomLng);
-  var randomLocation = new google.maps.LatLng(randomLat, randomLng)
+  var randomLocation = getRandomLocationForItem();
   var itemId = getRandomInRange(1, 1000000, 0);
   putNewItemOnMap(randomLocation, itemId);
   broadcastNewItem(randomLocation, itemId);
+}
+
+function getRandomLocationForItem() {
+  // Find a random location that works, and if it's too close
+  // to the base, pick another location
+  var randomLocation = null;
+  while (true) {
+    randomLat = getRandomInRange(mapCenter.lat() - (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
+    randomLng = getRandomInRange(mapCenter.lng() - (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
+    console.log(randomLat + ',' + randomLng);
+    randomLocation = new google.maps.LatLng(randomLat, randomLng)
+    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, baseLatLng) > 300) {
+      return randomLocation;
+    }
+    console.log('item too close to base, choosing another location...');
+  }
 }
 
 function putNewItemOnMap(location, itemId) {
   // eventually this should be redundant to clear this, but while
   // there's a bug on multiplayer joining, clear it again
   collectedItem = null;
-  baseMarker.setMap(null);
+  baseMarker.setIcon(baseTransparentIcon);
 
   markerLatLng = location
   itemMarker.setMap(map);
   itemMarker.setPosition(markerLatLng);
-  itemMarker.setAnimation(google.maps.Animation.BOUNCE);
   destination = markerLatLng;
   itemObject = {
     id: itemId,
@@ -324,7 +345,7 @@ function dataReceived(data) {
       console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item + ' which gives them ' + data.event.now_num_items);
       userIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
-        baseMarker.setMap(null);
+        baseMarker.setIcon(baseTransparentIcon);
         otherUserReturnedItem(data.event.now_num_items);
       }
     }
@@ -408,7 +429,7 @@ function otherUserCollectedItem(userId) {
   console.log('other user collected item');
   fadeArrowToImage('arrow_red.png');
   itemMarker.setMap(null);
-  baseMarker.setMap(map);
+  baseMarker.setIcon(baseIcon);
   userIdOfCarWithItem = userId;
 }
 
@@ -417,7 +438,7 @@ function userReturnedItemToBase() {
   incrementItemCount();
   collectedItem = null;
   randomlyPutItems();
-  baseMarker.setMap(null);
+  baseMarker.setIcon(baseTransparentIcon);
 }
 
 function incrementItemCount() {
@@ -433,7 +454,7 @@ function flashElement(jqueryElem) {
 function userCollidedWithItem(collisionItemObject) {
   collectedItem = collisionItemObject;
   itemMarker.setMap(null);
-  baseMarker.setMap(map);
+  baseMarker.setIcon(baseIcon);
   itemObject.marker = null;
   destination = baseLatLng;
 }
@@ -564,8 +585,13 @@ function broadcastNewLocation(location) {
 
 function getCollisionMarker() {
   if (destination) {
+    var maxDistanceAllowed = 20;
     var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
-    if (distance < 20) {
+    // The base is bigger, so be more lenient when checking for a base collision
+    if (destination == baseLatLng) {
+      maxDistanceAllowed = 46;
+    }
+    if (distance < maxDistanceAllowed) {
       if (destination == markerLatLng) {
         console.log('user ' + peer.id + ' collided with item');
         return itemMarker;
