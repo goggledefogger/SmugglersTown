@@ -1,37 +1,53 @@
 console.log('loading js file');
 
-var map;
+var map; // the map canvas from the Google Maps v3 javascript API
+var mapZoomLevel = 18;
 var markerImage;
-var mapData;
+var mapData; // the level data for this map (base locations)
 var markerLatLng;
 var itemMarker = null;
 var itemObject = null;
 var baseMarker = null;
-// default to the grand canyon, but this should be loaded from a map file
+// default to the grand canyon, but this will be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
-var baseLatLng = mapCenter;
+var baseLatLng = mapCenter; // for now the base always starts at the center of the map
+// for time-based game loop
 var now;
 var dt = 0;
 var last = timestamp();
 var step = 1 / 60;
+
+// car properties
 var rotation = 0;
 var deceleration = 1.1;
-var maxSpeed = 15;
+var maxSpeed = 20;
 var rotationCss = '';
 var arrowRotationCss = '';
+var latitudeSpeedFactor = 1000000;
+var longitudeSpeedFactor = 500000;
+
+// collision engine info
+var carToItemCollisionDistance = 20;
+var carToBaseCollisionDistance = 43;
+
+// map data
 var mapDataLoaded = false;
-var collectedItem = null;
-var numItemsCollected = 0;
 var widthOfAreaToPutItems = 0.008; // in latitude degrees
 var heightOfAreaToPutItems = 0.008; // in longitude degrees
 var otherCarLocation = null;
 var otherCarMarker = null;
+var minItemDistanceFromBase = 300;
+
+// gameplay
+var collectedItem = null;
+var numItemsCollected = 0;
 var otherUserNumItems = 0;
 var userIdOfCarWithItem = null;
 var destination = null;
 var timeDelayBetweenTransfers = 1000; // in ms
 var timeOfLastTransfer = null;
 
+// images
 var itemIcon = {
   url: 'images/smoking_toilet_small.gif'
 };
@@ -83,38 +99,27 @@ peer.on('connection', connectedToPeer);
 function initialize() {
   loadMapData();
 
+  // these are set to true when keys are being pressed
   rightDown = false;
   leftDown = false;
   upDown = false;
   downDown = false;
+
   speed = 0;
   rotation = 0;
   horizontalSpeed = 0;
   rotationCss = '';
 
-  console.log('init javascript in HTML');
+  createMapOnPage();
   //tryFindingLocation();
-  var mapOptions = {
-    zoom: 18,
-    center: mapCenter,
-    keyboardShortcuts: false,
-    mapTypeId: google.maps.MapTypeId.SATELLITE,
-    disableDefaultUI: true,
-    minZoom: 18,
-    maxZoom: 18,
-    scrollwheel: false,
-    disableDoubleClickZoom: true,
-    draggable: false,
-  }
 
-  map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
-  google.maps.event.addListener(map, 'click', function(e) {
-    contextmenu: true
-  });
+  bindKeyAndButtonEvents();
 
-  // not necessary
-  google.maps.event.addListener(map, "rightclick", showContextMenu);
+  // start the game loop
+  requestAnimationFrame(frame);
+}
 
+function bindKeyAndButtonEvents() {
   $(document).keydown(onKeyDown);
   $(document).keyup(onKeyUp);
   $('#connect-button').click(function(evt) {
@@ -132,9 +137,30 @@ function initialize() {
     broadcastNewLocation(newLocation);
     randomlyPutItems();
   });
+}
 
-  // start the game loop
-  requestAnimationFrame(frame);
+function createMapOnPage() {
+  var mapOptions = {
+    zoom: mapZoomLevel,
+    center: mapCenter,
+    keyboardShortcuts: false,
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
+    disableDefaultUI: true,
+    minZoom: mapZoomLevel,
+    maxZoom: mapZoomLevel,
+    scrollwheel: false,
+    disableDoubleClickZoom: true,
+    draggable: false,
+  }
+
+  map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+
+  // not necessary, just want to allow the right-click context menu
+  google.maps.event.addListener(map, 'click', function(e) {
+    contextmenu: true
+  });
+  google.maps.event.addListener(map, "rightclick", showContextMenu);
+
 }
 
 function searchAndCenterMap(searchTerm) {
@@ -187,11 +213,13 @@ function getRandomLocationForItem() {
   // to the base, pick another location
   var randomLocation = null;
   while (true) {
-    randomLat = getRandomInRange(mapCenter.lat() - (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
-    randomLng = getRandomInRange(mapCenter.lng() - (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
+    randomLat = getRandomInRange(mapCenter.lat() -
+      (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
+    randomLng = getRandomInRange(mapCenter.lng() -
+      (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
     console.log(randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng)
-    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, baseLatLng) > 300) {
+    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, baseLatLng) > minItemDistanceFromBase) {
       return randomLocation;
     }
     console.log('item too close to base, choosing another location...');
@@ -262,8 +290,8 @@ function moveCar() {
   // optimization - only if the car is moving should we spend
   // time resetting the map
   if (speed != 0 || horizontalSpeed != 0) {
-    newLat = map.getCenter().lat() + (speed / 1000000);
-    newLng = map.getCenter().lng() + (horizontalSpeed / 500000);
+    newLat = map.getCenter().lat() + (speed / latitudeSpeedFactor);
+    newLng = map.getCenter().lng() + (horizontalSpeed / longitudeSpeedFactor);
     mapCenter = new google.maps.LatLng(newLat, newLng);
     map.setCenter(mapCenter);
 
@@ -491,6 +519,11 @@ function update(step) {
   broadcastMyCarLocation();
 }
 
+function render(dt) {
+  $("#car-img").attr("style", rotationCss);
+  $("#arrow-img").attr("style", arrowRotationCss);
+}
+
 function broadcastMyCarLocation() {
   if (peerJsConnection && peerJsConnection.open && mapCenter) {
     peerJsConnection.send({
@@ -583,13 +616,14 @@ function broadcastNewLocation(location) {
   });
 }
 
+// checks to see if they have collided with either an item or the base
 function getCollisionMarker() {
   if (destination) {
-    var maxDistanceAllowed = 20;
+    var maxDistanceAllowed = carToItemCollisionDistance;
     var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
     // The base is bigger, so be more lenient when checking for a base collision
     if (destination == baseLatLng) {
-      maxDistanceAllowed = 46;
+      maxDistanceAllowed = carToBaseCollisionDistance;
     }
     if (distance < maxDistanceAllowed) {
       if (destination == markerLatLng) {
@@ -634,7 +668,7 @@ function computeBearingAngle(lat1, lon1, lat2, lon2) {
   return angleInRadians.toDeg();
 }
 
-
+// key events
 function onKeyDown(evt) {
   if (evt.keyCode == 39) {
     rightDown = true;
@@ -659,14 +693,9 @@ function onKeyUp(evt) {
   }
 }
 
-
+// game loop helpers
 function timestamp() {
   return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
-}
-
-function render(dt) {
-  $("#car-img").attr("style", rotationCss);
-  $("#arrow-img").attr("style", arrowRotationCss);
 }
 
 function frame() {
@@ -681,6 +710,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
+// don't think we'll need to go to the user's location, but might be useful
 function tryFindingLocation() {
   // Try HTML5 geolocation
   if (navigator.geolocation) {
@@ -706,24 +736,15 @@ function handleNoGeolocation(errorFlag) {
   }
 }
 
-
 // This can be removed, since it causes an error.  it's just allowing
 // for right-clicking to show the browser's context menu.
 function showContextMenu(e) {
 
   // create a contextmenu event.
   var menu_event = document.createEvent("MouseEvents");
-
-  /*
-   menu_event.initMouseEvent("contextmenu", true, true, e.view, 1,
-      e.screenX, e.screenY, e.clientX, e.clientY,
-      false, false, false, false, 2, null);
-*/
-
   menu_event.initMouseEvent("contextmenu", true, true,
     e.view, 1, 0, 0, 0, 0, false,
     false, false, false, 2, null);
-
 
   // fire the new event.
   e.originalTarget.dispatchEvent(menu_event);
