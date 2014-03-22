@@ -1,8 +1,10 @@
+// TODO: use require.js to load matchmaker.js instead of 
+// loading them in order in mapgame.html
+
 console.log('loading js file');
 
 var map; // the map canvas from the Google Maps v3 javascript API
 var mapZoomLevel = 18;
-var markerImage;
 var mapData; // the level data for this map (base locations)
 var markerLatLng;
 var itemMarker = null;
@@ -17,10 +19,16 @@ var dt = 0;
 var last = timestamp();
 var step = 1 / 60;
 
+// user data
+var username = null;
+
+// game hosting data
+var gameId = null;
+
 // car properties
 var rotation = 0;
 var deceleration = 1.1;
-var maxSpeed = 20;
+var maxSpeed = 18;
 var rotationCss = '';
 var arrowRotationCss = '';
 var latitudeSpeedFactor = 1000000;
@@ -37,6 +45,7 @@ var heightOfAreaToPutItems = 0.008; // in longitude degrees
 var otherCarLocation = null;
 var otherCarMarker = null;
 var minItemDistanceFromBase = 300;
+var donePuttingInitialItems = false;
 
 // gameplay
 var collectedItem = null;
@@ -97,7 +106,8 @@ peer.on('connection', connectedToPeer);
 
 
 function initialize() {
-  loadMapData();
+  username = prompt('Choose your Smuggler Name:', 'Ninja Roy');
+  loadMapData(mapIsReady);
 
   // these are set to true when keys are being pressed
   rightDown = false;
@@ -110,13 +120,36 @@ function initialize() {
   horizontalSpeed = 0;
   rotationCss = '';
 
-  createMapOnPage();
   //tryFindingLocation();
+  createMapOnPage();
 
   bindKeyAndButtonEvents();
 
   // start the game loop
   requestAnimationFrame(frame);
+}
+
+function mapIsReady() {
+  joinOrCreateGame(username, peer.id, gameJoined)
+}
+
+function gameJoined(id, isNewGame) {
+  gameId = id;
+  if (isNewGame) {
+    if (donePuttingInitialItems) {
+      saveGameSnapshotToFirebase();
+    } else {
+      // TODO: figure out how to deal if this code is
+      // called before the game data is set yet
+    }
+  } else {
+
+  }
+}
+
+
+function saveGameSnapshotToFirebase() {
+
 }
 
 function bindKeyAndButtonEvents() {
@@ -176,7 +209,7 @@ function searchAndCenterMap(searchTerm) {
   return location;
 }
 
-function loadMapData() {
+function loadMapData(mapIsReadyCallback) {
   mapDataLoaded = false;
   console.log('loading map data');
   $.getJSON("maps/grandcanyon.json", function(json) {
@@ -198,6 +231,7 @@ function loadMapData() {
       icon: baseIcon
     })
     randomlyPutItems();
+    mapIsReadyCallback();
   });
 }
 
@@ -217,7 +251,7 @@ function getRandomLocationForItem() {
       (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
     randomLng = getRandomInRange(mapCenter.lng() -
       (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
-    console.log(randomLat + ',' + randomLng);
+    console.log('trying to put item at: ' + randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng)
     if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, baseLatLng) > minItemDistanceFromBase) {
       return randomLocation;
@@ -232,7 +266,7 @@ function putNewItemOnMap(location, itemId) {
   collectedItem = null;
   baseMarker.setIcon(baseTransparentIcon);
 
-  markerLatLng = location
+  markerLatLng = location;
   itemMarker.setMap(map);
   itemMarker.setPosition(markerLatLng);
   destination = markerLatLng;
@@ -332,6 +366,7 @@ function connectedToPeer(conn) {
 
 function peerConnectionClosed() {
   otherCarMarker.setMap(null);
+  removeMeFromGameHost(peer.id);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -363,7 +398,7 @@ function dataReceived(data) {
       fadeArrowToImage('arrow.png');
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
-      if (data.event.host_user != peer.id) {
+      if (data.event.host_user && data.event.host_user != peer.id) {
         markerLatLng = new google.maps.LatLng(data.event.location.lat, data.event.location.lng);
         putNewItemOnMap(markerLatLng, data.event.id);
       }
@@ -462,10 +497,10 @@ function otherUserCollectedItem(userId) {
 }
 
 function userReturnedItemToBase() {
+  console.log('user returned item to base');
   fadeArrowToImage('arrow.png');
   incrementItemCount();
   collectedItem = null;
-  randomlyPutItems();
   baseMarker.setIcon(baseTransparentIcon);
 }
 
@@ -514,6 +549,7 @@ function update(step) {
       // user has an item and is back at the base
       userReturnedItemToBase();
       broadcastItemReturned(peer.id);
+      randomlyPutItems();
     }
   }
   broadcastMyCarLocation();
@@ -546,7 +582,7 @@ function broadcastNewItem(location, itemId) {
     peerJsConnection.send({
       event: {
         name: 'new_item',
-        hose_user: peer.id,
+        host_user: peer.id,
         location: {
           lat: simpleItemLatLng.lat,
           lng: simpleItemLatLng.lng
@@ -645,11 +681,6 @@ function setGameToNewLocation(location) {
   baseMarker.setPosition(baseLatLng);
   mapCenter = baseLatLng;
   map.setCenter(mapCenter);
-}
-
-function getRandomInRange(from, to, fixed) {
-  return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
-  // .toFixed() returns string, so ' * 1' is a trick to convert to number
 }
 
 function getAngle(vx, vy) {
