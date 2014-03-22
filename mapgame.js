@@ -45,7 +45,6 @@ var heightOfAreaToPutItems = 0.008; // in longitude degrees
 var otherCarLocation = null;
 var otherCarMarker = null;
 var minItemDistanceFromBase = 300;
-var donePuttingInitialItems = false;
 
 // gameplay
 var collectedItem = null;
@@ -133,24 +132,15 @@ function mapIsReady() {
   joinOrCreateGame(username, peer.id, gameJoined)
 }
 
-function gameJoined(id, isNewGame) {
+function gameJoined(id, isNewGame, hostPeerId) {
   gameId = id;
   if (isNewGame) {
-    if (donePuttingInitialItems) {
-      saveGameSnapshotToFirebase();
-    } else {
-      // TODO: figure out how to deal if this code is
-      // called before the game data is set yet
-    }
-  } else {
 
+  } else {
+    connectToPeer(hostPeerId);
   }
 }
 
-
-function saveGameSnapshotToFirebase() {
-
-}
 
 function bindKeyAndButtonEvents() {
   $(document).keydown(onKeyDown);
@@ -366,7 +356,7 @@ function connectedToPeer(conn) {
 
 function peerConnectionClosed() {
   otherCarMarker.setMap(null);
-  removeMeFromGameHost(peer.id);
+  removeMeFromGameHost(gameId, peer.id);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -780,3 +770,9 @@ function showContextMenu(e) {
   // fire the new event.
   e.originalTarget.dispatchEvent(menu_event);
 }
+
+$(window).unload(function() {
+  if (peer) {
+    removeMeFromGameHost(gameId, peer.id);
+  }
+});

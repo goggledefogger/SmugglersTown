@@ -23,7 +23,7 @@ function joinOrCreateGame(username, peerId, callback) {
       if (snapshot.val() === null) {
         // there are no available games, so create one
         var gameId = createNewGame(availableGamesDataRef, username, peerId);
-        callback(gameId, true);
+        callback(gameId, true, peerId);
       } else {
         console.log(snapshot.child(0).val());
         // for now, just join the first game in the array
@@ -38,6 +38,7 @@ function createNewGame(availableGamesDataRef, username, peerId) {
   var gameId = createNewGameId();
   availableGamesDataRef.set([{
     id: gameId,
+    hostPeerId: peerId,
     users: [{
       peerId: peerId,
       username: username
@@ -66,7 +67,7 @@ function joinExistingGame(gameDataSnapshot, username, peerId, callback) {
   if (gameData.users.length == MAX_USERS_PER_GAME) {
     setGameToFull(gameDataSnapshot.ref(), gameData);
   }
-  callback(gameData.id, false);
+  callback(gameData.id, false, gameData.hostPeerId);
 };
 
 function setGameToFull(gameDataRef, gameData) {
@@ -75,7 +76,7 @@ function setGameToFull(gameDataRef, gameData) {
   fullGamesRef.push(gameData);
 }
 
-function removeMeFromGameHost(peerId) {
+function removeMeFromGameHost(gameId, peerId) {
   // TODO
 }
 
