@@ -99,7 +99,7 @@ var peer = new Peer({
 peer.on('open', function(id) {
   console.log('My peer ID is: ' + id);
   $('#peer-id').text(id);
-  $('#peer-connection-status').text('no game joined');
+  $('#peer-connection-status').text('waiting for a smuggler to battle...');
 });
 peer.on('connection', connectedToPeer);
 
@@ -132,17 +132,21 @@ function mapIsReady() {
   joinOrCreateGame(username, peer.id, gameJoined)
 }
 
-function gameJoined(id, isNewGame, hostPeerId) {
-  gameId = id;
+function gameJoined(gameData, isNewGame) {
+  gameId = gameData.id;
   if (isNewGame) {
 
   } else {
-    connectToPeer(hostPeerId);
+    connectToPeer(gameData.hostPeerId);
   }
 }
 
 
 function bindKeyAndButtonEvents() {
+  $(window).resize(function() {
+    resizeMapToFit();
+  });
+
   $(document).keydown(onKeyDown);
   $(document).keyup(onKeyUp);
   $('#connect-button').click(function(evt) {
@@ -184,6 +188,17 @@ function createMapOnPage() {
   });
   google.maps.event.addListener(map, "rightclick", showContextMenu);
 
+  resizeMapToFit();
+}
+
+function resizeMapToFit() {
+  $('body').height($(window).height() - 2);
+  var mainHeight = $('body').height();
+  var contentHeight =
+    $('#header').outerHeight() +
+    $('#footer').outerHeight();
+  var h = mainHeight - contentHeight;
+  $('#map-body').height(h);
 }
 
 function searchAndCenterMap(searchTerm) {
