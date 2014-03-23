@@ -77,8 +77,77 @@ function setGameToFull(gameDataRef, gameData) {
   fullGamesRef.push(gameData);
 }
 
-function removeMeFromGameHost(gameId, peerId) {
-  // TODO
+function removePeerFromGame(gameId, peerId) {
+  // check full games and available games
+  removePeerFromGameList([FULL_GAMES_LOCATION, AVAILABLE_GAMES_LOCATION], peerId);
+}
+
+function removePeerFromGameList(gameLocationsArray, peerId) {
+  var gameListRef = null;
+  // iterate through all locations to find the peer's game
+  for (i = 0; i < gameLocationsArray.length; i++) {
+    var gameListRef = gameRef.child(gameLocationsArray[i]);
+    gameListRef.on('value', function(dataSnapshot) {
+      dataSnapshot.forEach(function(childSnapshot) {
+        var gameData = childSnapshot.val();
+        if (gameData.id == gameId) {
+          gameData = removeUserFromGameData(peerId, gameData);
+          // if the user was actually removed from the game,
+          // update Firebase and move the game from FULL to AVAILABLE
+          if (gameData != null) {
+            childSnapshot.ref().set(gameData);
+            // TODO: check to see if game is empty, then delete
+            //moveGameFromFullToAvailable(childSnapshot.ref(), gameData);
+          }
+        }
+      });
+    });
+  }
+}
+
+function moveGameFromFullToAvailable(gameToMoveRef, gameData) {
+  var availableGamesRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
+
+  availableGamesRef.on('value', function(snapshot) {
+    // if this is the first available game, create the ref in Firebase
+    if (snapshot.val() === null) {
+      availableGamesRef.set([gameData]);
+    } else {
+      // get the existing list of available games and add this to it
+      var availableGameData = snapshot.val();
+      console.log(availableGameData);
+      availableGameData.push(gameData);
+      //snapshot.ref().set(availableGameData);
+    }
+  });
+  gameToMoveRef.remove();
+}
+
+// returns null if the user wasn't found in the game
+function removeUserFromGameData(peerId, gameData) {
+  // if something's wrong, just return
+  if (!gameData || !gameData.users) {
+    return null;
+  }
+  var foundPeer = false;
+
+  usersWithoutPeer = [];
+  for (i = 0; i < gameData.users.length; i++) {
+    if (gameData.users[i].peerId == peerId) {
+      foundPeer = true;
+    } else {
+      usersWithoutPeer.push(gameData.users[i]);
+    }
+  }
+
+  if (foundPeer) {
+    gameData.users = usersWithoutPeer;
+    return gameData;
+  } else {
+    return null;
+  }
+
+
 }
 
 function removeGameFromAvailableGames(gameDataRef) {

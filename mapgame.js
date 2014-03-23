@@ -164,6 +164,14 @@ function bindKeyAndButtonEvents() {
     broadcastNewLocation(newLocation);
     randomlyPutItems();
   });
+  window.onbeforeunload = disconnectFromGame;
+}
+
+function disconnectFromGame() {
+  if (peer && peer.id && gameId) {
+    removePeerFromGame(gameId, peer.id);
+  }
+
 }
 
 function createMapOnPage() {
@@ -371,7 +379,7 @@ function connectedToPeer(conn) {
 
 function peerConnectionClosed() {
   otherCarMarker.setMap(null);
-  removeMeFromGameHost(gameId, peer.id);
+  removePeerFromGame(gameId, peer.id);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -787,7 +795,7 @@ function showContextMenu(e) {
 }
 
 $(window).unload(function() {
-  if (peer) {
-    removeMeFromGameHost(gameId, peer.id);
+  if (gameId && peer && peer.id) {
+    removePeerFromGame(gameId, peer.id);
   }
 });
