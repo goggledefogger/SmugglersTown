@@ -9,6 +9,7 @@ var MAX_USERS_PER_GAME = 2;
 
 var joinedGame = null;
 
+// this is one of the public points of entry
 function joinOrCreateGame(username, peerId, callback) {
   console.log('trying to join game');
   var availableGamesDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
@@ -37,6 +38,63 @@ function joinOrCreateGame(username, peerId, callback) {
   });
 }
 
+// another public point of entry
+function removePeerFromGame(gameId, peerId) {
+  var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
+  gameDataRef.once('value', function(data) {
+    if (data.val().hostPeerId == peerId) {
+      findNewHostPeerId(gameId, peerId, switchToNewHost);
+    }
+    var numUsersInGame = data.val().users.length;
+    data.child('users').forEach(function(childSnapshot) {
+      // if we've found the ref that represents the given peer, remove it
+      if (childSnapshot.val() && childSnapshot.val().peerId == peerId) {
+        childSnapshot.ref().remove();
+        // if this user was the last one in the game, now there are 0, 
+        // so delete the game
+        if (numUsersInGame == 1) {
+          deleteGame(gameId);
+        } else {
+          // if it was full, now it has one open slot, set it to available
+          if (numUsersInGame == MAX_USERS_PER_GAME) {
+            moveGameFromFullToAvailable(gameId);
+          }
+        }
+      }
+    });
+  });
+}
+
+function findNewHostPeerId(gameId, existingHostPeerId, callback) {
+  gameRef.child(ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
+    var users = data.val().users;
+    for (var i = 0; i < users.length; i++) {
+      if (users[i] && users[i].peerId != existingHostPeerId) {
+        // we've found a new user to be the host, return their id
+        callback(gameId, users[i].peerId);
+      }
+    }
+    callback(gameId, null);
+  });
+}
+
+function switchToNewHost(gameId, newHostPeerId) {
+  if (!newHostPeerId) {
+    return;
+  }
+  gameRef.child(ALL_GAMES_LOCATION).child(gameId).child('hostPeerId').set(newHostPeerId);
+}
+
+function deleteGame(gameId) {
+  removeGameFromAvailableGames(gameId);
+  removeGame(gameId);
+}
+
+function removeGame(gameId) {
+  var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
+  gameDataRef.remove();
+}
+
 function createNewGame(username, peerId) {
   console.log('creating new game');
   var gameId = createNewGameId();
@@ -55,6 +113,7 @@ function createNewGame(username, peerId) {
   joinedGame = gameId;
   return gameData;
 }
+
 
 function createNewGameId() {
   // TODO: replace this with something that won't
@@ -95,58 +154,31 @@ function setGameToFull(gameId) {
   addGameToFullGamesList(gameId);
 }
 
+function removeGameFromAvailableGames(gameId) {
+  var gameDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION).child(gameId);
+  gameDataRef.remove();
+}
+
 function addGameToFullGamesList(gameId) {
   var gameDataRef = gameRef.child(FULL_GAMES_LOCATION).child(gameId);
   gameDataRef.set(gameId);
 }
 
-
-function removePeerFromGame(gameId, peerId) {
-  // check full games and available games
-  removePeerFromGameList([FULL_GAMES_LOCATION, AVAILABLE_GAMES_LOCATION], peerId);
+function moveGameFromFullToAvailable(gameId) {
+  removeGameFromFullGames(gameId);
+  addGameToAvailableGamesList(gameId);
 }
 
-function removePeerFromGameList(gameLocationsArray, peerId) {
-  var gameListRef = null;
-  // iterate through all locations to find the peer's game
-  for (i = 0; i < gameLocationsArray.length; i++) {
-    var gameListRef = gameRef.child(gameLocationsArray[i]);
-    gameListRef.once('value', function(dataSnapshot) {
-      dataSnapshot.forEach(function(childSnapshot) {
-        var gameData = childSnapshot.val();
-        if (gameData.id == gameId) {
-          gameData = removeUserFromGameData(peerId, gameData);
-          // if the user was actually removed from the game,
-          // update Firebase and move the game from FULL to AVAILABLE
-          if (gameData != null) {
-            // save the new gameData to Firebase
-            childSnapshot.ref().set(gameData);
-            // TODO: check to see if game is empty, then delete
-            //moveGameFromFullToAvailable(childSnapshot.ref(), gameData);
-          }
-        }
-      });
-    });
-  }
+function removeGameFromFullGames(gameId) {
+  var gameDataRef = gameRef.child(FULL_GAMES_LOCATION).child(gameId);
+  gameDataRef.remove();
 }
 
-function moveGameFromFullToAvailable(gameToMoveRef, gameData) {
-  var availableGamesRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
-
-  availableGamesRef.once('value', function(snapshot) {
-    // if this is the first available game, create the ref in Firebase
-    if (snapshot.val() === null) {
-      availableGamesRef.set([gameData]);
-    } else {
-      // get the existing list of available games and add this to it
-      var availableGameData = snapshot.val();
-      console.log(availableGameData);
-      availableGameData.push(gameData);
-      //snapshot.ref().set(availableGameData);
-    }
-  });
-  gameToMoveRef.remove();
+function addGameToAvailableGamesList(gameId) {
+  var gameDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION).child(gameId);
+  gameDataRef.set(gameId);
 }
+
 
 // returns null if the user wasn't found in the game
 function removeUserFromGameData(peerId, gameData) {
@@ -154,6 +186,7 @@ function removeUserFromGameData(peerId, gameData) {
   if (!gameData || !gameData.users) {
     return null;
   }
+
 
   // TODO: Firebase has a better way of doing this
   var foundPeer = false;
@@ -175,9 +208,4 @@ function removeUserFromGameData(peerId, gameData) {
   }
 
 
-}
-
-function removeGameFromAvailableGames(gameId) {
-  var gameDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION).child(gameId);
-  gameDataRef.remove();
 }
