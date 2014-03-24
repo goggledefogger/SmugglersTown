@@ -53,18 +53,25 @@ var destination = null;
 var timeDelayBetweenTransfers = 1000; // in ms
 var timeOfLastTransfer = null;
 
-// other users
-
-// this object will be of this form:
+// object of the other users
+var otherUsers = {};
+// the otherUsers data will be of this form:
 // {
-//   peerId: 12346789,
-//   car:
-//     {
-//       location: <location object>,
+//   123456789: {
+//     peerId: 12346789,
+//     car: {
+//       location: <location_object>,
 //       marker: <marker_object>
 //     }
+//   },
+//   987654321: {
+//     peerId: 987654321,
+//     car: {
+//       location: <location_object>,
+//       marker: <marker_object>
+//     }
+//   }
 // }
-var otherUserObject = null;
 
 // images
 var itemIcon = {
@@ -368,7 +375,7 @@ function connectedToPeer(conn) {
   peerJsConnection = conn;
   peerJsConnection.on('close', function() {
     console.log('closing connection');
-    peerConnectionClosed();
+    peerConnectionClosed(conn.peer);
   });
   peerJsConnection.on('data', function(data) {
     dataReceived(data);
@@ -376,12 +383,20 @@ function connectedToPeer(conn) {
   randomlyPutItems();
 }
 
-function peerConnectionClosed() {
-  otherUserObject.car.marker.setMap(null);
+function peerConnectionClosed(peerId) {
+  otherUserDisconnected(peerId);
 }
 
 function fadeArrowToImage(imageFileName) {
   $("#arrow-img").attr('src', 'images/' + imageFileName);
+}
+
+function otherUserDisconnected(peerId) {
+  if (!otherUsers[peerId]) {
+    return;
+  }
+
+  delete otherUsers[peerId];
 }
 
 function otherUserChangedLocation(location) {
@@ -440,26 +455,30 @@ function dataReceived(data) {
     }
   }
 
-  if (data.carLatLng) {
-    // if this is the first time seeing data from another car, initialize
-    // the other user object and car objects
-    if (!otherUserObject || !otherUserObject.car || !otherUserObject.car.location) {
-      var otherCarMarker = new google.maps.Marker({
-        map: map,
-        title: 'Other Car',
-        icon: otherCarIcon
-      });
-
-      otherUserObject = {
-        peerId: data.peerId,
-        car: {
-          location: new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng),
-          marker: otherCarMarker
-        }
-      };
+  if (data.peerId && data.carLatLng) {
+    // if this is the first time seeing data from another car, initialize it
+    if (!otherUsers[data.peerId]) {
+      otherUsers[data.peerId] = createNewUserFromData(data);
     }
-    moveOtherCar(new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
+    moveOtherCar(otherUsers[data.peerId], new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
   }
+}
+
+function createNewUserFromData(userData) {
+  var otherCarMarker = new google.maps.Marker({
+    map: map,
+    title: userData.peerId,
+    icon: otherCarIcon
+  });
+
+  var newUserObject = {
+    peerId: userData.peerId,
+    car: {
+      location: new google.maps.LatLng(userData.carLatLng.lat, userData.carLatLng.lng),
+      marker: otherCarMarker
+    }
+  }
+  return newUserObject;
 }
 
 function otherUserReturnedItem(nowNumItemsForUser) {
@@ -469,7 +488,7 @@ function otherUserReturnedItem(nowNumItemsForUser) {
   flashElement($('#num-items-opponent-collected'));
 }
 
-function moveOtherCar(newLocation) {
+function moveOtherCar(otherUserObject, newLocation) {
   otherUserObject.car.location = newLocation;
   transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
   otherUserObject.car.marker.setPosition(otherUserObject.car.location);
@@ -555,13 +574,12 @@ function rotateArrow() {
 
 function update(step) {
   moveCar();
-  if (otherUserObject && otherUserObject.car) {
-    // if another user has an item, constantly set the destination to their location
-    if (!collectedItem && userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
-      destination = otherUserObject.car.location;
-    }
-    transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
+  // if another user has an item, constantly set the destination to their location
+  if (userIdOfCarWithItem && userIdOfCarWithItem != peer.id && otherUsers[userIdOfCarWithItem]) {
+    destination = otherUsers[userIdOfCarWithItem].car.location;
+    transferItemIfCarsHaveCollided(otherUsers[userIdOfCarWithItem].car.location, userIdOfCarWithItem);
   }
+
   // check if user collided with an item or the base
   var collisionMarker = getCollisionMarker();
   if (collisionMarker) {
