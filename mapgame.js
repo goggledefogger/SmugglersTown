@@ -42,8 +42,6 @@ var carToBaseCollisionDistance = 43;
 var mapDataLoaded = false;
 var widthOfAreaToPutItems = 0.008; // in latitude degrees
 var heightOfAreaToPutItems = 0.008; // in longitude degrees
-var otherCarLocation = null;
-var otherCarMarker = null;
 var minItemDistanceFromBase = 300;
 
 // gameplay
@@ -54,6 +52,19 @@ var userIdOfCarWithItem = null;
 var destination = null;
 var timeDelayBetweenTransfers = 1000; // in ms
 var timeOfLastTransfer = null;
+
+// other users
+
+// this object will be of this form:
+// {
+//   peerId: 12346789,
+//   car:
+//     {
+//       location: <location object>,
+//       marker: <marker_object>
+//     }
+// }
+var otherUserObject = null;
 
 // images
 var itemIcon = {
@@ -366,7 +377,7 @@ function connectedToPeer(conn) {
 }
 
 function peerConnectionClosed() {
-  otherCarMarker.setMap(null);
+  otherUserObject.car.marker.setMap(null);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -430,15 +441,24 @@ function dataReceived(data) {
   }
 
   if (data.carLatLng) {
-    if (!otherCarLocation) {
-      otherCarMarker = new google.maps.Marker({
+    // if this is the first time seeing data from another car, initialize
+    // the other user object and car objects
+    if (!otherUserObject || !otherUserObject.car || !otherUserObject.car.location) {
+      var otherCarMarker = new google.maps.Marker({
         map: map,
         title: 'Other Car',
         icon: otherCarIcon
       });
+
+      otherUserObject = {
+        peerId: data.peerId,
+        car: {
+          location: new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng),
+          marker: otherCarMarker
+        }
+      };
     }
-    otherCarLocation = new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng);
-    moveOtherCar(otherCarLocation, data.peerId);
+    moveOtherCar(new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
   }
 }
 
@@ -449,12 +469,13 @@ function otherUserReturnedItem(nowNumItemsForUser) {
   flashElement($('#num-items-opponent-collected'));
 }
 
-function moveOtherCar(location, otherUserPeerId) {
-  checkForCarCollision(location, otherUserPeerId);
-  otherCarMarker.setPosition(location);
+function moveOtherCar(newLocation) {
+  otherUserObject.car.location = newLocation;
+  transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
+  otherUserObject.car.marker.setPosition(otherUserObject.car.location);
 }
 
-function checkForCarCollision(otherCarLocation, otherUserPeerId) {
+function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
   // if this isn't the user with the item, then ignore it. We'll only
   // transfer an item from the perspected of the user with the item
   if (!collectedItem) {
@@ -534,10 +555,14 @@ function rotateArrow() {
 
 function update(step) {
   moveCar();
-  // if another user has an item, constantly set the destination to their location
-  if (!collectedItem && userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
-    destination = otherCarLocation;
+  if (otherUserObject && otherUserObject.car) {
+    // if another user has an item, constantly set the destination to their location
+    if (!collectedItem && userIdOfCarWithItem && userIdOfCarWithItem != peer.id) {
+      destination = otherUserObject.car.location;
+    }
+    transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
   }
+  // check if user collided with an item or the base
   var collisionMarker = getCollisionMarker();
   if (collisionMarker) {
     if (!collectedItem && collisionMarker == itemMarker) {

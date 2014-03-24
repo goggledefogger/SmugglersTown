@@ -38,8 +38,6 @@ function joinOrCreateGame(username, peerId, callback) {
   });
 }
 
-
-
 // another public point of entry
 function removePeerFromGame(gameId, peerId) {
   var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
