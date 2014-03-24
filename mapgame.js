@@ -1,4 +1,4 @@
-// TODO: use require.js to load matchmaker.js instead of 
+// TODO: use require.js to load utilities and matchmaker.js instead of 
 // loading them in order in mapgame.html
 
 console.log('loading js file');
@@ -78,18 +78,7 @@ var baseTransparentIcon = {
   anchor: new google.maps.Point(75, 120)
 };
 
-/** Adds to the Number prototye: Converts numeric degrees to radians */
-if (typeof(Number.prototype.toRad) === "undefined") {
-  Number.prototype.toRad = function() {
-    return this * Math.PI / 180;
-  }
-}
-/** Adds to the Number prototye: Converts numeric radians to degrees */
-if (typeof(Number.prototype.toDeg) === "undefined") {
-  Number.prototype.toDeg = function() {
-    return this * 180 / Math.PI;
-  }
-}
+
 
 // peer JS connection (for multiplayer webRTC)
 var peerJsConnection = null;
@@ -171,7 +160,6 @@ function disconnectFromGame() {
   if (peer && peer.id && gameId) {
     removePeerFromGame(gameId, peer.id);
   }
-
 }
 
 function createMapOnPage() {
@@ -379,7 +367,6 @@ function connectedToPeer(conn) {
 
 function peerConnectionClosed() {
   otherCarMarker.setMap(null);
-  removePeerFromGame(gameId, peer.id);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -794,8 +781,6 @@ function showContextMenu(e) {
   e.originalTarget.dispatchEvent(menu_event);
 }
 
-$(window).unload(function() {
-  if (gameId && peer && peer.id) {
-    removePeerFromGame(gameId, peer.id);
-  }
-});
+// $(window).unload(function() {
+//   disconnectFromGame();
+// });

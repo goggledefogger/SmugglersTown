@@ -38,6 +38,8 @@ function joinOrCreateGame(username, peerId, callback) {
   });
 }
 
+
+
 // another public point of entry
 function removePeerFromGame(gameId, peerId) {
   var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
@@ -45,7 +47,11 @@ function removePeerFromGame(gameId, peerId) {
     if (data.val().hostPeerId == peerId) {
       findNewHostPeerId(gameId, peerId, switchToNewHost);
     }
-    var numUsersInGame = data.val().users.length;
+
+    // Firebase weirdness: the users array can still have undefined elements
+    // which represents users that have left the game. So trim out the 
+    // undefined elements to see the actual array of current users
+    var numUsersInGame = data.child('users').val().clean(undefined).length;
     data.child('users').forEach(function(childSnapshot) {
       // if we've found the ref that represents the given peer, remove it
       if (childSnapshot.val() && childSnapshot.val().peerId == peerId) {
@@ -66,8 +72,24 @@ function removePeerFromGame(gameId, peerId) {
 }
 
 function findNewHostPeerId(gameId, existingHostPeerId, callback) {
+  // reset the hostPeerId so it prevents the leaving host's browser
+  // if it tries to switch again before this is done
+  gameRef.child(ALL_GAMES_LOCATION).child(gameId).child('hostPeerId').remove();
+
   gameRef.child(ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
-    var users = data.val().users;
+    var users = data.child('users').val();
+
+    // if for whatever reason this is called and something's not right, just
+    // return
+    if (!users) {
+      return;
+    }
+
+    users = users.clean(undefined);
+    if (users.length == 0) {
+      return;
+    }
+
     for (var i = 0; i < users.length; i++) {
       if (users[i] && users[i].peerId != existingHostPeerId) {
         // we've found a new user to be the host, return their id
@@ -134,16 +156,28 @@ function asyncGetGameData(gameId, username, peerId, joinedGameCallback, doneGett
 
 function doneGettingGameData(gameDataSnapshot, username, peerId, joinedGameCallback) {
   var gameData = gameDataSnapshot.val();
-  // annoying, but if this gets 
-  gameData.users.push({
+  var newUser = {
     peerId: peerId,
     username: username
-  });
+  };
+  // weirdness: i want to just push newUser onto gameData.users, but
+  // that messes up the array I guess
+  var usersArray = [];
+  for (var i = 0; i < gameData.users.length; i++) {
+    if (gameData.users[i]) {
+      usersArray.push(gameData.users[i]);
+    }
+  }
+  usersArray.push(newUser);
+  gameData.users = usersArray;
   var gameDataRef = gameDataSnapshot.ref();
   gameDataRef.set(gameData);
   console.log('joining game ' + gameData.id);
   joinedGame = gameData.id;
-  if (gameData.users.length == MAX_USERS_PER_GAME) {
+  // Firebase weirdness: the users array can still have undefined elements
+  // which represents users that have left the game. So trim out the 
+  // undefined elements to see the actual array of current users
+  if (usersArray.length == MAX_USERS_PER_GAME) {
     setGameToFull(gameData.id);
   }
   joinedGameCallback(gameData, false);
@@ -187,9 +221,13 @@ function removeUserFromGameData(peerId, gameData) {
     return null;
   }
 
-
   // TODO: Firebase has a better way of doing this
   var foundPeer = false;
+
+  // Firebase weirdness: the users array can still have undefined elements
+  // which represents users that have left the game. So trim out the 
+  // undefined elements to see the actual array of current users
+  gameData.users = gameData.users.clean(undefined);
 
   usersWithoutPeer = [];
   for (i = 0; i < gameData.users.length; i++) {
