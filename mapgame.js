@@ -62,14 +62,17 @@ var otherUsers = {};
 //     car: {
 //       location: <location_object>,
 //       marker: <marker_object>
-//     }
+//     },
+//     peerJsConnection: <peerJsConnection_object>
+//     
 //   },
 //   987654321: {
 //     peerId: 987654321,
 //     car: {
 //       location: <location_object>,
 //       marker: <marker_object>
-//     }
+//     },
+//     peerJsConnection: <peerJsConnection_object>
 //   }
 // }
 
@@ -97,9 +100,7 @@ var baseTransparentIcon = {
 };
 
 
-
 // peer JS connection (for multiplayer webRTC)
-var peerJsConnection = null;
 var peer = new Peer({
   key: 'j3m0qtddeshpk3xr'
 });
@@ -136,7 +137,7 @@ function initialize() {
 }
 
 function mapIsReady() {
-  joinOrCreateGame(username, peer.id, gameJoined)
+  joinOrCreateGame(username, peer.id, connectToPeer, gameJoined)
 }
 
 function gameJoined(gameData, isNewGame) {
@@ -356,10 +357,10 @@ function moveCar() {
   }
 }
 
-function connectToPeer(peerId) {
-  console.log('trying to connect to ' + peerId);
-  $('#peer-connection-status').text('trying to connect to ' + peerId);
-  peerJsConnection = peer.connect(peerId);
+function connectToPeer(otherUserPeerId) {
+  console.log('trying to connect to ' + otherUserPeerId);
+  $('#peer-connection-status').text('trying to connect to ' + otherUserPeerId);
+  var peerJsConnection = peer.connect(otherUserPeerId);
   peerJsConnection.on('open', function() {
     console.log('connection open');
     connectedToPeer(peerJsConnection);
@@ -369,33 +370,43 @@ function connectToPeer(peerId) {
   });
 }
 
-function connectedToPeer(conn) {
-  console.log('connected to ' + conn.peer);
-  $('#peer-connection-status').text('connected to ' + conn.peer);
-  peerJsConnection = conn;
-  peerJsConnection.on('close', function() {
-    console.log('closing connection');
-    peerConnectionClosed(conn.peer);
-  });
-  peerJsConnection.on('data', function(data) {
-    dataReceived(data);
-  });
+function connectedToPeer(peerJsConnection) {
+  var otherUserPeerId = peerJsConnection.peer;
+  console.log('connected to ' + otherUserPeerId);
+  $('#peer-connection-status').text('connected to ' + otherUserPeerId);
+  initializePeerConnection(peerJsConnection, otherUserPeerId)
+  addCarDataToUserObject(otherUserPeerId);
   randomlyPutItems();
 }
 
-function peerConnectionClosed(peerId) {
-  otherUserDisconnected(peerId);
+function initializePeerConnection(peerJsConnection, otherUserPeerId) {
+  if (!otherUsers[otherUserPeerId]) {
+    otherUsers[otherUserPeerId] = {};
+  }
+  otherUsers[otherUserPeerId].peerJsConnection = peerJsConnection;
+  otherUsers[otherUserPeerId].peerJsConnection.on('close', function() {
+    console.log('closing connection');
+    peerConnectionClosed(otherUserPeerId);
+  });
+  otherUsers[otherUserPeerId].peerJsConnection.on('data', function(data) {
+    dataReceived(data);
+  });
+}
+
+function peerConnectionClosed(otherUserPeerId) {
+  otherUserDisconnected(otherUserPeerId);
 }
 
 function fadeArrowToImage(imageFileName) {
   $("#arrow-img").attr('src', 'images/' + imageFileName);
 }
 
-function otherUserDisconnected(peerId) {
-  if (!otherUsers[peerId]) {
+function otherUserDisconnected(otherUserPeerId) {
+  if (!otherUsers[otherUserPeerId]) {
     return;
   }
 
+  otherUsers[peerId].car.marker.setMap(null);
   delete otherUsers[peerId];
 }
 
@@ -440,6 +451,7 @@ function dataReceived(data) {
     }
     if (data.event.name == 'item_transferred') {
       console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
+      userIdOfCarWithItem = data.event.toUserPeerId;
       if (data.event.toUserPeerId == peer.id) {
         // the item was transferred to this user
         fadeArrowToImage('arrow_blue.png');
@@ -448,37 +460,34 @@ function dataReceived(data) {
           marker: null
         };
         timeOfLastTransfer = (new Date()).getTime();
-        console.log('someone transferred to me at ' + timeOfLastTransfer);
-        userIdOfCarWithItem = data.event.toUserPeerId;
+        console.log('someone transferred at ' + timeOfLastTransfer);
         userCollidedWithItem(itemObject);
+      } else {
+        // set the arrow to point to the new user who has the item
+        destination = otherUsers[data.event.toUserPeerId].car.location;
       }
     }
   }
 
-  if (data.peerId && data.carLatLng) {
-    // if this is the first time seeing data from another car, initialize it
-    if (!otherUsers[data.peerId]) {
-      otherUsers[data.peerId] = createNewUserFromData(data);
-    }
+  if (data.peerId && data.carLatLng && otherUsers[data.peerId] && otherUsers[data.peerId].car) {
     moveOtherCar(otherUsers[data.peerId], new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
   }
 }
 
-function createNewUserFromData(userData) {
+function addCarDataToUserObject(peerId) {
+  if (!otherUsers[peerId]) {
+    otherUsers[peerId] = {};
+  }
   var otherCarMarker = new google.maps.Marker({
     map: map,
-    title: userData.peerId,
+    title: peerId,
     icon: otherCarIcon
   });
 
-  var newUserObject = {
-    peerId: userData.peerId,
-    car: {
-      location: new google.maps.LatLng(userData.carLatLng.lat, userData.carLatLng.lng),
-      marker: otherCarMarker
-    }
-  }
-  return newUserObject;
+  otherUsers[peerId].peerId = peerId;
+  otherUsers[peerId].car = {
+    marker: otherCarMarker
+  };
 }
 
 function otherUserReturnedItem(nowNumItemsForUser) {
@@ -574,10 +583,19 @@ function rotateArrow() {
 
 function update(step) {
   moveCar();
-  // if another user has an item, constantly set the destination to their location
-  if (userIdOfCarWithItem && userIdOfCarWithItem != peer.id && otherUsers[userIdOfCarWithItem]) {
-    destination = otherUsers[userIdOfCarWithItem].car.location;
-    transferItemIfCarsHaveCollided(otherUsers[userIdOfCarWithItem].car.location, userIdOfCarWithItem);
+
+  if (userIdOfCarWithItem) {
+    // check for collisions between one car with an item and one without
+    if (userIdOfCarWithItem == peer.id) {
+      // if this user has an item, check to see if they are colliding
+      // with any other user, and if so, transfer the item
+      for (var user in otherUsers) {
+        transferItemIfCarsHaveCollided(otherUsers[user].car.location, otherUsers[user].peerId);
+      }
+    } else {
+      // if another user has an item, constantly set the destination to their location
+      destination = otherUsers[userIdOfCarWithItem].car.location;
+    }
   }
 
   // check if user collided with an item or the base
@@ -604,95 +622,108 @@ function render(dt) {
 }
 
 function broadcastMyCarLocation() {
-  if (peerJsConnection && peerJsConnection.open && mapCenter) {
-    peerJsConnection.send({
-      carLatLng: {
-        lat: mapCenter.lat(),
-        lng: mapCenter.lng()
-      },
-      peerId: peer.id
-    });
+  for (var user in otherUsers) {
+    if (otherUsers[user].peerJsConnection && otherUsers[user].peerJsConnection.open && mapCenter) {
+      otherUsers[user].peerJsConnection.send({
+        carLatLng: {
+          lat: mapCenter.lat(),
+          lng: mapCenter.lng()
+        },
+        peerId: peer.id
+      });
+    }
   }
+
 }
 
 function broadcastNewItem(location, itemId) {
-  if (peerJsConnection && peerJsConnection.open) {
-    var simpleItemLatLng = {
-      lat: location.lat(),
-      lng: location.lng()
-    };
+  for (var user in otherUsers) {
+    if (otherUsers[user].peerJsConnection && otherUsers[user].peerJsConnection.open) {
+      var simpleItemLatLng = {
+        lat: location.lat(),
+        lng: location.lng()
+      };
 
-    peerJsConnection.send({
+      otherUsers[user].peerJsConnection.send({
+        event: {
+          name: 'new_item',
+          host_user: peer.id,
+          location: {
+            lat: simpleItemLatLng.lat,
+            lng: simpleItemLatLng.lng
+          },
+          id: itemId
+        }
+      });
+    }
+  }
+}
+
+function broadcastItemReturned() {
+  for (var user in otherUsers) {
+    console.log('broadcasting item returned');
+    if (!otherUsers[user].peerJsConnection || !otherUsers[user].peerJsConnection.open) {
+      return;
+    }
+    otherUsers[user].peerJsConnection.send({
       event: {
-        name: 'new_item',
-        host_user: peer.id,
-        location: {
-          lat: simpleItemLatLng.lat,
-          lng: simpleItemLatLng.lng
-        },
-        id: itemId
+        name: 'item_returned',
+        user_id_of_car_that_returned_item: peer.id,
+        now_num_items: numItemsCollected,
       }
     });
   }
 }
 
-function broadcastItemReturned() {
-  console.log('broadcasting item returned');
-  if (!peerJsConnection || !peerJsConnection.open) {
-    return;
-  }
-  peerJsConnection.send({
-    event: {
-      name: 'item_returned',
-      user_id_of_car_that_returned_item: peer.id,
-      now_num_items: numItemsCollected,
-    }
-  });
-}
-
 function broadcastItemCollected(itemId) {
   console.log('broadcasting item id ' + itemId + ' collected by user ' + peer.id);
-  if (!peerJsConnection || !peerJsConnection.open) {
-    return;
-  }
-  userIdOfCarWithItem = peer.id;
-  peerJsConnection.send({
-    event: {
-      name: 'item_collected',
-      id: itemId,
-      user_id_of_car_with_item: userIdOfCarWithItem
+  for (var user in otherUsers) {
+    if (!otherUsers[user].peerJsConnection || !otherUsers[user].peerJsConnection.open) {
+      return;
     }
-  });
+    userIdOfCarWithItem = peer.id;
+    otherUsers[user].peerJsConnection.send({
+      event: {
+        name: 'item_collected',
+        id: itemId,
+        user_id_of_car_with_item: userIdOfCarWithItem
+      }
+    });
+  }
 }
 
 function broadcastTransferOfItem(itemId, fromUserPeerId, toUserPeerId) {
   console.log('broadcasting item transferred ' + itemId + ' from ' + fromUserPeerId + ' to ' + toUserPeerId);
-  if (!peerJsConnection || !peerJsConnection.open) {
-    return;
-  }
-  peerJsConnection.send({
-    event: {
-      name: 'item_transferred',
-      id: itemId,
-      fromUserPeerId: fromUserPeerId,
-      toUserPeerId: toUserPeerId
+  for (var user in otherUsers) {
+    if (!otherUsers[user].peerJsConnection || !otherUsers[user].peerJsConnection.open) {
+      return;
     }
-  });
+    otherUsers[user].peerJsConnection.send({
+      event: {
+        name: 'item_transferred',
+        id: itemId,
+        fromUserPeerId: fromUserPeerId,
+        toUserPeerId: toUserPeerId
+      }
+    });
+  }
 }
 
 function broadcastNewLocation(location) {
   console.log('broadcasting new location: ' + location.lat() + ',' + location.lng());
-  if (!peerJsConnection || !peerJsConnection.open) {
-    return;
-  }
-  peerJsConnection.send({
-    event: {
-      name: 'new_location',
-      lat: location.lat(),
-      lng: location.lng(),
-      originating_peer_id: peer.id
+  for (var user in otherUsers) {
+    if (!otherUsers[user].peerJsConnection || !otherUsers[user].peerJsConnection.open) {
+      return;
     }
-  });
+    otherUsers[user].peerJsConnection.send({
+      event: {
+        name: 'new_location',
+        lat: location.lat(),
+        lng: location.lng(),
+        originating_peer_id: peer.id
+      }
+    });
+  }
 }
 
 // checks to see if they have collided with either an item or the base

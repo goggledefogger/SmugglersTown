@@ -5,12 +5,12 @@ var gameRef = new Firebase(GAME_LOCATION);
 var AVAILABLE_GAMES_LOCATION = 'available_games';
 var FULL_GAMES_LOCATION = 'full_games';
 var ALL_GAMES_LOCATION = 'games';
-var MAX_USERS_PER_GAME = 2;
+var MAX_USERS_PER_GAME = 4;
 
 var joinedGame = null;
 
 // this is one of the public points of entry
-function joinOrCreateGame(username, peerId, callback) {
+function joinOrCreateGame(username, peerId, connectToUserCallback, joinedGameCallback) {
   console.log('trying to join game');
   var availableGamesDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
   availableGamesDataRef.once('value', function(data) {
@@ -21,7 +21,7 @@ function joinOrCreateGame(username, peerId, callback) {
       if (data.val() === null) {
         // there are no available games, so create one
         var gameData = createNewGame(username, peerId);
-        callback(gameData, true);
+        joinedGameCallback(gameData, true);
       } else {
         var jsonObj = data.val();
         var gameId;
@@ -32,7 +32,7 @@ function joinOrCreateGame(username, peerId, callback) {
           }
         }
         // for now, just join the first game in the array
-        joinExistingGame(gameId, username, peerId, callback);
+        joinExistingGame(gameId, username, peerId, connectToUserCallback, joinedGameCallback);
       }
     }
   });
@@ -141,18 +141,18 @@ function createNewGameId() {
   return getRandomInRange(1, 10000000);
 }
 
-function joinExistingGame(gameId, username, peerId, joinedGameCallback) {
-  asyncGetGameData(gameId, username, peerId, joinedGameCallback, doneGettingGameData);
+function joinExistingGame(gameId, username, peerId, connectToUserCallback, joinedGameCallback) {
+  asyncGetGameData(gameId, username, peerId, connectToUserCallback, joinedGameCallback, doneGettingGameData);
 };
 
-function asyncGetGameData(gameId, username, peerId, joinedGameCallback, doneGettingGameDataCallback) {
+function asyncGetGameData(gameId, username, peerId, connectToUserCallback, joinedGameCallback, doneGettingGameDataCallback) {
   var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
   gameDataRef.once('value', function(data) {
-    doneGettingGameDataCallback(data, username, peerId, joinedGameCallback);
+    doneGettingGameDataCallback(data, username, peerId, connectToUserCallback, joinedGameCallback);
   });
 }
 
-function doneGettingGameData(gameDataSnapshot, username, peerId, joinedGameCallback) {
+function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUserCallback, joinedGameCallback) {
   var gameData = gameDataSnapshot.val();
   var newUser = {
     peerId: peerId,
@@ -177,6 +177,9 @@ function doneGettingGameData(gameDataSnapshot, username, peerId, joinedGameCallb
   // undefined elements to see the actual array of current users
   if (usersArray.length == MAX_USERS_PER_GAME) {
     setGameToFull(gameData.id);
+  }
+  for (var j = 0; j < gameData.users.length; j++) {
+    connectToUserCallback(gameData.users[j].peerId);
   }
   joinedGameCallback(gameData, false);
 }
