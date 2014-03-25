@@ -24,6 +24,7 @@ var username = null;
 
 // game hosting data
 var gameId = null;
+var hostPeerId = null;
 
 // car properties
 var rotation = 0;
@@ -63,8 +64,8 @@ var otherUsers = {};
 //       location: <location_object>,
 //       marker: <marker_object>
 //     },
-//     peerJsConnection: <peerJsConnection_object>
-//     
+//     peerJsConnection: <peerJsConnection_object>,
+//     lastUpdateTime: <time_object>
 //   },
 //   987654321: {
 //     peerId: 987654321,
@@ -72,7 +73,8 @@ var otherUsers = {};
 //       location: <location_object>,
 //       marker: <marker_object>
 //     },
-//     peerJsConnection: <peerJsConnection_object>
+//     peerJsConnection: <peerJsConnection_object>,
+//     lastUpdateTime: <time_object>
 //   }
 // }
 
@@ -110,6 +112,7 @@ peer.on('open', function(id) {
   $('#peer-connection-status').text('waiting for a smuggler to battle...');
 });
 peer.on('connection', connectedToPeer);
+var ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 10 * 1000;
 
 
 function initialize() {
@@ -143,12 +146,14 @@ function mapIsReady() {
 function gameJoined(gameData, isNewGame) {
   gameId = gameData.id;
   if (isNewGame) {
-
+    // we're hosting the game ourself
+    hostPeerId = peer.id;
   } else {
+    // someone else is already the host
+    hostPeerId = gameData.hostPeerId;
     connectToPeer(gameData.hostPeerId);
   }
 }
-
 
 function bindKeyAndButtonEvents() {
   $(window).resize(function() {
@@ -386,15 +391,11 @@ function initializePeerConnection(peerJsConnection, otherUserPeerId) {
   otherUsers[otherUserPeerId].peerJsConnection = peerJsConnection;
   otherUsers[otherUserPeerId].peerJsConnection.on('close', function() {
     console.log('closing connection');
-    peerConnectionClosed(otherUserPeerId);
+    otherUserDisconnected(otherUserPeerId);
   });
   otherUsers[otherUserPeerId].peerJsConnection.on('data', function(data) {
     dataReceived(data);
   });
-}
-
-function peerConnectionClosed(otherUserPeerId) {
-  otherUserDisconnected(otherUserPeerId);
 }
 
 function fadeArrowToImage(imageFileName) {
@@ -402,12 +403,37 @@ function fadeArrowToImage(imageFileName) {
 }
 
 function otherUserDisconnected(otherUserPeerId) {
+  // should be called after the peerJs connection
+  // has already been closed
   if (!otherUsers[otherUserPeerId]) {
     return;
   }
 
-  otherUsers[peerId].car.marker.setMap(null);
-  delete otherUsers[peerId];
+  // remove the other user's car from the map
+  otherUsers[otherUserPeerId].car.marker.setMap(null);
+
+  alert('other user disconnected!');
+  // if I am the host, I'll be the one to tell Firebase to remove this other user
+  if (hostPeerId == peer.id) {
+    removePeerFromGame(gameId, otherUserPeerId);
+  } else {
+    // if the user who disconnected was the host, I should become a new host
+    if (hostPeerId == otherUserPeerId) {
+      // TODO: figure out how to only do this if the disconnect was initiated
+      // by the existing host. We don't want this code to run if this user
+      // was the one to disconnect
+
+      // switchToNewHost(gameId, peer.id);
+      // hostPeerId = peer.id;
+    }
+  }
+  // delete that user's data
+  delete otherUsers[otherUserPeerId];
+
+  // if there are no users left, show the waiting message
+  if (Object.keys(otherUsers).length == 0) {
+    $('#peer-connection-status').text('waiting for a smuggler to battle...');
+  }
 }
 
 function otherUserChangedLocation(location) {
@@ -415,6 +441,13 @@ function otherUserChangedLocation(location) {
 }
 
 function dataReceived(data) {
+  if (data.peerId) {
+    if (!otherUsers[data.peerId]) {
+      otherUsers[data.peerId] = {};
+    }
+    otherUsers[data.peerId].lastUpdateTime = (new Date()).getTime();
+  }
+
   if (data.event) {
     if (data.event.name == 'new_location') {
       console.log('received event: new location ' + data.event.lat + ',' + data.event.lng);
@@ -613,7 +646,31 @@ function update(step) {
       randomlyPutItems();
     }
   }
+
   broadcastMyCarLocation();
+
+  // if the game has started and we're the host, check
+  // for any peers who haven't sent an update in too long
+  if (hostPeerId && peer && peer.id && hostPeerId == peer.id) {
+    cleanupAnyDroppedConnections();
+  }
+}
+
+function cleanupAnyDroppedConnections() {
+  var timeNow = (new Date()).getTime();
+  for (var user in otherUsers) {
+    // if it's been longer than the timeout since we've heard from
+    // this user, remove them from the game
+    if (otherUsers[user].lastUpdateTime && (timeNow - otherUsers[user].lastUpdateTime > ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS)) {
+      closePeerJsConnection(user);
+    }
+  }
+}
+
+function closePeerJsConnection(otherUserPeerId) {
+  if (otherUsers[otherUserPeerId] && otherUsers[otherUserPeerId].peerJsConnection) {
+    otherUsers[otherUserPeerId].peerJsConnection.close();
+  }
 }
 
 function render(dt) {
