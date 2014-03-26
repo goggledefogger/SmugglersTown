@@ -60,21 +60,25 @@ var otherUsers = {};
 // {
 //   123456789: {
 //     peerId: 12346789,
+//     username: helloroy,
 //     car: {
 //       location: <location_object>,
 //       marker: <marker_object>
 //     },
 //     peerJsConnection: <peerJsConnection_object>,
-//     lastUpdateTime: <time_object>
+//     lastUpdateTime: <time_object>,
+//     numItems: 0
 //   },
 //   987654321: {
 //     peerId: 987654321,
+//     username: towntown9000,
 //     car: {
 //       location: <location_object>,
 //       marker: <marker_object>
 //     },
 //     peerJsConnection: <peerJsConnection_object>,
-//     lastUpdateTime: <time_object>
+//     lastUpdateTime: <time_object>,
+//     numItems: 5
 //   }
 // }
 
@@ -112,7 +116,7 @@ peer.on('open', function(id) {
   $('#peer-connection-status').text('waiting for a smuggler to battle...');
 });
 peer.on('connection', connectedToPeer);
-var ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 10 * 1000;
+var ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 30 * 1000;
 
 
 function initialize() {
@@ -379,9 +383,24 @@ function connectedToPeer(peerJsConnection) {
   var otherUserPeerId = peerJsConnection.peer;
   console.log('connected to ' + otherUserPeerId);
   $('#peer-connection-status').text('connected to ' + otherUserPeerId);
+  // if this is the first time we've connected to this uesr,
+  // add the HTML for the new user
+  if (!otherUsers[otherUserPeerId] || !otherUsers[otherUserPeerId].peerJsConnection) {
+    addNewUserToUI(otherUserPeerId);
+  }
+
   initializePeerConnection(peerJsConnection, otherUserPeerId)
   addCarDataToUserObject(otherUserPeerId);
   randomlyPutItems();
+}
+
+function addNewUserToUI(newUserPeerId) {
+  var newUserScoreTextHtml = '<span id="score-' + newUserPeerId +
+    '" class="border emphasized" ><span id="username-' + newUserPeerId + '">' +
+    newUserPeerId + '</span> collected: <span class="num-items-collected">0</span></span>';
+  // convert HTML to jquery object
+  var newUserScoreDomElement = $($.parseHTML(newUserScoreTextHtml));
+  $('#scores').append(newUserScoreDomElement);
 }
 
 function initializePeerConnection(peerJsConnection, otherUserPeerId) {
@@ -409,10 +428,8 @@ function otherUserDisconnected(otherUserPeerId) {
     return;
   }
 
-  // remove the other user's car from the map
-  otherUsers[otherUserPeerId].car.marker.setMap(null);
+  removeUserFromUI(otherUserPeerId);
 
-  alert('other user disconnected!');
   // if I am the host, I'll be the one to tell Firebase to remove this other user
   if (hostPeerId == peer.id) {
     removePeerFromGame(gameId, otherUserPeerId);
@@ -434,6 +451,15 @@ function otherUserDisconnected(otherUserPeerId) {
   if (Object.keys(otherUsers).length == 0) {
     $('#peer-connection-status').text('waiting for a smuggler to battle...');
   }
+}
+
+function removeUserFromUI(peerId) {
+  // remove the other user's car from the map
+  otherUsers[peerId].car.marker.setMap(null);
+
+  // remove their score box
+  var scoreElemSelector = '#score-' + peerId;
+  $(scoreElemSelector).remove();
 }
 
 function otherUserChangedLocation(location) {
@@ -479,7 +505,7 @@ function dataReceived(data) {
       userIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
         baseMarker.setIcon(baseTransparentIcon);
-        otherUserReturnedItem(data.event.now_num_items);
+        otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
       }
     }
     if (data.event.name == 'item_transferred') {
@@ -502,9 +528,19 @@ function dataReceived(data) {
     }
   }
 
+  if (data.peerId && data.username && !otherUsers[data.peerId].username) {
+    updateUsername(data.peerId, data.username);
+  }
+
   if (data.peerId && data.carLatLng && otherUsers[data.peerId] && otherUsers[data.peerId].car) {
     moveOtherCar(otherUsers[data.peerId], new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
   }
+}
+
+function updateUsername(peerId, username) {
+  otherUsers[peerId].username = username;
+  var userElemSelector = '#username-' + peerId;
+  $(userElemSelector).text(username);
 }
 
 function addCarDataToUserObject(peerId) {
@@ -523,11 +559,18 @@ function addCarDataToUserObject(peerId) {
   };
 }
 
-function otherUserReturnedItem(nowNumItemsForUser) {
+function otherUserReturnedItem(otherUserPeerId, nowNumItemsForUser) {
   fadeArrowToImage('arrow.png');
   otherUserNumItems = nowNumItemsForUser;
-  $('#num-items-opponent-collected').text(otherUserNumItems);
-  flashElement($('#num-items-opponent-collected'));
+  updateUserScore(otherUserPeerId, nowNumItemsForUser);
+  var scoreElemSelector = '#score-' + otherUserPeerId + ' span.num-items-collected';
+  flashElement($(scoreElemSelector));
+}
+
+function updateUserScore(peerId, userScore) {
+  otherUsers[peerId].score = userScore;
+  var scoreElemSelector = '#score-' + peerId + ' span.num-items-collected';
+  $(scoreElemSelector).text(userScore);
 }
 
 function moveOtherCar(otherUserObject, newLocation) {
@@ -686,7 +729,8 @@ function broadcastMyCarLocation() {
           lat: mapCenter.lat(),
           lng: mapCenter.lng()
         },
-        peerId: peer.id
+        peerId: peer.id,
+        username: username
       });
     }
   }

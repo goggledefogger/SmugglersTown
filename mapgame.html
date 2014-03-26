@@ -106,8 +106,9 @@ google.maps.event.addDomListener(window, 'load', initialize);
     <input class="border" type="button" id="connect-button" value="connect"/>
     <span class="border emphasized" >Peer ID: <span id="peer-id">(no peer id yet)</span></span>
     <span class="border emphasized" >STATUS: <span id="peer-connection-status" style="color: red;">Getting peer id...</span></span>
-    <span class="border emphasized right-aligned" >Opponent collected: <span id="num-items-opponent-collected">0</span></span>
-    <span class="border emphasized right-aligned" >You collected: <span id="num-items-collected">0</span></span>
+    <div id="scores" class="right-aligned">
+      <span class="border emphasized" >You collected: <span id="num-items-collected">0</span></span>
+    </div>
   </div>
   <div id="map-body">
     <div id="map-canvas"></div>
