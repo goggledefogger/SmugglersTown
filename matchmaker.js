@@ -10,7 +10,7 @@ var MAX_USERS_PER_GAME = 4;
 var joinedGame = null;
 
 // this is one of the public points of entry
-function joinOrCreateGame(username, peerId, connectToUserCallback, joinedGameCallback) {
+function joinOrCreateGame(username, peerId, connectToUsersCallback, joinedGameCallback) {
   console.log('trying to join game');
   var availableGamesDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
   availableGamesDataRef.once('value', function(data) {
@@ -32,7 +32,7 @@ function joinOrCreateGame(username, peerId, connectToUserCallback, joinedGameCal
           }
         }
         // for now, just join the first game in the array
-        joinExistingGame(gameId, username, peerId, connectToUserCallback, joinedGameCallback);
+        joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
       }
     }
   });
@@ -141,18 +141,18 @@ function createNewGameId() {
   return getRandomInRange(1, 10000000);
 }
 
-function joinExistingGame(gameId, username, peerId, connectToUserCallback, joinedGameCallback) {
-  asyncGetGameData(gameId, username, peerId, connectToUserCallback, joinedGameCallback, doneGettingGameData);
+function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback) {
+  asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameData);
 };
 
-function asyncGetGameData(gameId, username, peerId, connectToUserCallback, joinedGameCallback, doneGettingGameDataCallback) {
+function asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameDataCallback) {
   var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
   gameDataRef.once('value', function(data) {
-    doneGettingGameDataCallback(data, username, peerId, connectToUserCallback, joinedGameCallback);
+    doneGettingGameDataCallback(data, username, peerId, connectToUsersCallback, joinedGameCallback);
   });
 }
 
-function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUserCallback, joinedGameCallback) {
+function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUsersCallback, joinedGameCallback) {
   var gameData = gameDataSnapshot.val();
   var newUser = {
     peerId: peerId,
@@ -178,9 +178,11 @@ function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUserCa
   if (usersArray.length == MAX_USERS_PER_GAME) {
     setGameToFull(gameData.id);
   }
+  var peerIdsArray = [];
   for (var j = 0; j < gameData.users.length; j++) {
-    connectToUserCallback(gameData.users[j].peerId);
+    peerIdsArray.push(gameData.users[j].peerId);
   }
+  connectToUsersCallback(peerIdsArray);
   joinedGameCallback(gameData, false);
 }
 

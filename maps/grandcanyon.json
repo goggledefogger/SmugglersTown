@@ -5,11 +5,11 @@
             "lat": 36.151103,
             "lng": -113.208565
         },
-        "team1BaseLatLng": {
+        "teamTownBaseLatLng": {
             "lat": 36.151103,
             "lng": -113.208565
         },
-        "team2BaseLatLng": {
+        "teamCrushBaseLatLng": {
             "lat": 36.144279,
             "lng": -113.197505
         }

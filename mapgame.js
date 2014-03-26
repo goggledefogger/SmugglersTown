@@ -1,7 +1,9 @@
+/* YOUR SMUGGLER MISSION, IF YOU CHOOSE TO ACCEPT, IS TO JOIN TEAM
+ * TOWN AND TRY TO DEFEAT TEAM CRUSH.  AND YOU MUST ACCEPT...
+ */
+
 // TODO: use require.js to load utilities and matchmaker.js instead of 
 // loading them in order in mapgame.html
-
-console.log('loading js file');
 
 var map; // the map canvas from the Google Maps v3 javascript API
 var mapZoomLevel = 18;
@@ -10,17 +12,29 @@ var mapData; // the level data for this map (base locations)
 var markerLatLng;
 var itemMarker = null;
 var itemObject = null;
-var baseMarker = null;
-var otherTeamBase = null;
-// the otherTeamBase object will be of this form:
-// {
-//   location: <location_object>,
-//   marker: <marker_object>
-// }
 
 // default to the grand canyon, but this will be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
-var baseLatLng = mapCenter; // for now the base always starts at the center of the map
+
+// team data
+
+// the team objects will be of this form:
+// {
+//   users: [123456789,987654321],
+//   baseObject: {
+//     location: <location_object>,
+//     marker: <marker_object>
+//   },
+//   numItemsCollected: 0
+// }
+var myTeamObject = {
+  baseObject: {
+    location: mapCenter
+  },
+  numItemsCollected: 0
+};
+var teamCrushObject = null;
+
 
 
 // for time-based game loop
@@ -57,7 +71,6 @@ var minItemDistanceFromBase = 300;
 
 // gameplay
 var collectedItem = null;
-var numItemsCollected = 0;
 var otherUserNumItems = 0;
 var userIdOfCarWithItem = null;
 var destination = null;
@@ -109,7 +122,7 @@ var baseIcon = {
   anchor: new google.maps.Point(75, 120)
 };
 
-var otherTeamBaseIcon = {
+var teamCrushBaseIcon = {
   url: 'images/opponent_fort.png',
   origin: new google.maps.Point(0, 0),
   anchor: new google.maps.Point(75, 120)
@@ -121,7 +134,7 @@ var baseTransparentIcon = {
   anchor: new google.maps.Point(75, 120)
 };
 
-var opponentBaseTransparentIcon = {
+var teamCrushBaseTransparentIcon = {
   url: 'images/opponent_fort_transparent.png',
   origin: new google.maps.Point(0, 0),
   anchor: new google.maps.Point(75, 120)
@@ -166,7 +179,7 @@ function initialize() {
 }
 
 function mapIsReady() {
-  joinOrCreateGame(username, peer.id, connectToPeer, gameJoined)
+  joinOrCreateGame(username, peer.id, connectToAllNonHostUsers, gameJoined)
 }
 
 function gameJoined(gameData, isNewGame) {
@@ -174,11 +187,24 @@ function gameJoined(gameData, isNewGame) {
   if (isNewGame) {
     // we're hosting the game ourself
     hostPeerId = peer.id;
+    myTeamObject.users = [peer.id];
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
-    connectToPeer(gameData.hostPeerId);
   }
+}
+
+function connectToAllNonHostUsers(nonHostPeerIds) {
+  for (var i = 0; i < nonHostPeerIds.length; i++) {
+    connectToPeer(nonHostPeerIds[i]);
+  }
+}
+
+function createTeamCrushObject(teamCrushPeerIds, baseLat, baseLng) {
+  teamCrushObject = {};
+  teamCrushObject.users = teamCrushPeerIds;
+  teamCrushObject.baseObject = createTeamCrushBase(baseLat, baseLng);
+  teamCrushObject.numItemsCollected = 0;
 }
 
 function bindKeyAndButtonEvents() {
@@ -275,27 +301,27 @@ function loadMapData(mapIsReadyCallback) {
       icon: itemIcon,
       optimized: false
     });
-    baseMarker = new google.maps.Marker({
-      title: 'Base',
+    myTeamObject.baseObject.marker = new google.maps.Marker({
+      title: 'Team Town Base',
       map: map,
-      position: baseLatLng,
+      position: new google.maps.LatLng(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng),
       icon: baseIcon
     });
-    createOtherTeamBase(mapData.map.team2BaseLatLng.lat, mapData.map.team2BaseLatLng.lng);
     randomlyPutItems();
     mapIsReadyCallback();
   });
 }
 
-function createOtherTeamBase(lat, lng) {
-  otherTeamBase = {};
-  otherTeamBase.location = new google.maps.LatLng(lat, lng);
-  otherTeamBase.marker = new google.maps.Marker({
-    title: 'Opponent Base',
+function createTeamCrushBase(lat, lng) {
+  var teamCrushBaseObject = {};
+  teamCrushBaseObject.location = new google.maps.LatLng(lat, lng);
+  teamCrushBaseObject.marker = new google.maps.Marker({
+    title: 'Team Crush Base',
     map: map,
-    position: otherTeamBase.location,
-    icon: otherTeamBaseIcon
+    position: teamCrushBaseObject.location,
+    icon: teamCrushBaseIcon
   });
+  return teamCrushBaseObject;
 }
 
 function randomlyPutItems() {
@@ -316,7 +342,7 @@ function getRandomLocationForItem() {
       (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
     console.log('trying to put item at: ' + randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng)
-    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, baseLatLng) > minItemDistanceFromBase) {
+    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, myTeamObject.baseObject.location) > minItemDistanceFromBase) {
       return randomLocation;
     }
     console.log('item too close to base, choosing another location...');
@@ -327,9 +353,12 @@ function putNewItemOnMap(location, itemId) {
   // eventually this should be redundant to clear this, but while
   // there's a bug on multiplayer joining, clear it again
   collectedItem = null;
-  baseMarker.setIcon(baseTransparentIcon);
-  otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
-
+  myTeamObject.baseObject.marker.setIcon(baseTransparentIcon);
+  // teamCrushObject will be null if the other team isn't in the
+  // game yet
+  if (teamCrushObject) {
+    teamCrushObject.baseObject.marker.setIcon(teamCrushBaseTransparentIcon);
+  }
   markerLatLng = location;
   itemMarker.setMap(map);
   itemMarker.setPosition(markerLatLng);
@@ -539,8 +568,10 @@ function dataReceived(data) {
       console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item + ' which gives them ' + data.event.now_num_items);
       userIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
-        baseMarker.setIcon(baseTransparentIcon);
-        otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
+        myTeamObject.baseObject.marker.setIcon(baseTransparentIcon);
+        if (teamCrushObject) {
+          teamCrushObject.baseObject.marker.setIcon(teamCrushBaseTransparentIcon);
+        }
         otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
       }
     }
@@ -653,8 +684,10 @@ function otherUserCollectedItem(userId) {
   console.log('other user collected item');
   fadeArrowToImage('arrow_red.png');
   itemMarker.setMap(null);
-  baseMarker.setIcon(baseIcon);
-  otherTeamBase.marker.setIcon(otherTeamBaseIcon);
+  myTeamObject.baseObject.marker.setIcon(baseIcon);
+  if (teamCrushObject) {
+    teamCrushObject.baseObject.marker.setIcon(teamCrushBaseIcon);
+  }
   userIdOfCarWithItem = userId;
 }
 
@@ -663,13 +696,15 @@ function userReturnedItemToBase() {
   fadeArrowToImage('arrow.png');
   incrementItemCount();
   collectedItem = null;
-  baseMarker.setIcon(baseTransparentIcon);
-  otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
+  myTeamObject.baseObject.marker.setIcon(baseTransparentIcon);
+  if (teamCrushObject) {
+    teamCrushObject.baseObject.marker.setIcon(teamCrushBaseTransparentIcon);
+  }
 }
 
 function incrementItemCount() {
-  numItemsCollected++;
-  $('#num-items-collected').text(numItemsCollected);
+  myTeamObject.numItemsCollected++;
+  $('#num-items-collected').text(myTeamObject.numItemsCollected);
   flashElement($('#num-items-collected'));
 }
 
@@ -680,10 +715,12 @@ function flashElement(jqueryElem) {
 function userCollidedWithItem(collisionItemObject) {
   collectedItem = collisionItemObject;
   itemMarker.setMap(null);
-  baseMarker.setIcon(baseIcon);
-  otherTeamBase.marker.setIcon(otherTeamBaseIcon);
+  myTeamObject.baseObject.marker.setIcon(baseIcon);
+  if (teamCrushObject) {
+    teamCrushObject.baseObject.marker.setIcon(teamCrushBaseIcon);
+  }
   itemObject.marker = null;
-  destination = baseLatLng;
+  destination = myTeamObject.baseObject.location;
 }
 
 function rotateCar() {
@@ -721,7 +758,7 @@ function update(step) {
       fadeArrowToImage('arrow_blue.png');
       userCollidedWithItem(itemObject);
       broadcastItemCollected(itemObject.id);
-    } else if (collectedItem && collisionMarker == baseMarker) {
+    } else if (collectedItem && collisionMarker == myTeamObject.baseObject.marker) {
       // user has an item and is back at the base
       userReturnedItemToBase();
       broadcastItemReturned(peer.id);
@@ -872,18 +909,18 @@ function getCollisionMarker() {
     var maxDistanceAllowed = carToItemCollisionDistance;
     var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
     // The base is bigger, so be more lenient when checking for a base collision
-    if (destination == baseLatLng) {
+    if (destination == myTeamObject.baseObject.location) {
       maxDistanceAllowed = carToBaseCollisionDistance;
     }
     if (distance < maxDistanceAllowed) {
       if (destination == markerLatLng) {
         console.log('user ' + peer.id + ' collided with item');
         return itemMarker;
-      } else if (destination == baseLatLng) {
+      } else if (destination == myTeamObject.baseObject.location) {
         if (collectedItem) {
           console.log('user ' + peer.id + ' has an item and collided with base');
         }
-        return baseMarker;
+        return myTeamObject.baseObject.marker;
       }
     }
   }
@@ -891,9 +928,9 @@ function getCollisionMarker() {
 }
 
 function setGameToNewLocation(location) {
-  baseLatLng = location;
-  baseMarker.setPosition(baseLatLng);
-  mapCenter = baseLatLng;
+  myTeamObject.baseObject.location = location;
+  myTeamObject.baseObject.marker.setPosition(location);
+  mapCenter = location;
   map.setCenter(mapCenter);
 }
 
