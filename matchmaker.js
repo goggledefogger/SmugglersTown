@@ -42,6 +42,10 @@ function joinOrCreateGame(username, peerId, connectToUsersCallback, joinedGameCa
 function removePeerFromGame(gameId, peerId) {
   var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).child(gameId);
   gameDataRef.once('value', function(data) {
+    if (!data.val()) {
+      // something's wrong, probably the Firebase data was deleted
+      return;
+    }
     if (data.val().hostPeerId == peerId) {
       findNewHostPeerId(gameId, peerId, switchToNewHost);
     }
