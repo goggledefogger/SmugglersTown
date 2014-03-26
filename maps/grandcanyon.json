@@ -4,6 +4,14 @@
         "centerLatLng": {
             "lat": 36.151103,
             "lng": -113.208565
+        },
+        "team1BaseLatLng": {
+            "lat": 36.151103,
+            "lng": -113.208565
+        },
+        "team2BaseLatLng": {
+            "lat": 36.144279,
+            "lng": -113.197505
         }
     }
 }

@@ -6,13 +6,23 @@ console.log('loading js file');
 var map; // the map canvas from the Google Maps v3 javascript API
 var mapZoomLevel = 18;
 var mapData; // the level data for this map (base locations)
+
 var markerLatLng;
 var itemMarker = null;
 var itemObject = null;
 var baseMarker = null;
+var otherTeamBase = null;
+// the otherTeamBase object will be of this form:
+// {
+//   location: <location_object>,
+//   marker: <marker_object>
+// }
+
 // default to the grand canyon, but this will be loaded from a map file
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 var baseLatLng = mapCenter; // for now the base always starts at the center of the map
+
+
 // for time-based game loop
 var now;
 var dt = 0;
@@ -99,8 +109,20 @@ var baseIcon = {
   anchor: new google.maps.Point(75, 120)
 };
 
+var otherTeamBaseIcon = {
+  url: 'images/opponent_fort.png',
+  origin: new google.maps.Point(0, 0),
+  anchor: new google.maps.Point(75, 120)
+};
+
 var baseTransparentIcon = {
   url: 'images/fort_transparent.png',
+  origin: new google.maps.Point(0, 0),
+  anchor: new google.maps.Point(75, 120)
+};
+
+var opponentBaseTransparentIcon = {
+  url: 'images/opponent_fort_transparent.png',
   origin: new google.maps.Point(0, 0),
   anchor: new google.maps.Point(75, 120)
 };
@@ -258,9 +280,21 @@ function loadMapData(mapIsReadyCallback) {
       map: map,
       position: baseLatLng,
       icon: baseIcon
-    })
+    });
+    createOtherTeamBase(mapData.map.team2BaseLatLng.lat, mapData.map.team2BaseLatLng.lng);
     randomlyPutItems();
     mapIsReadyCallback();
+  });
+}
+
+function createOtherTeamBase(lat, lng) {
+  otherTeamBase = {};
+  otherTeamBase.location = new google.maps.LatLng(lat, lng);
+  otherTeamBase.marker = new google.maps.Marker({
+    title: 'Opponent Base',
+    map: map,
+    position: otherTeamBase.location,
+    icon: otherTeamBaseIcon
   });
 }
 
@@ -294,6 +328,7 @@ function putNewItemOnMap(location, itemId) {
   // there's a bug on multiplayer joining, clear it again
   collectedItem = null;
   baseMarker.setIcon(baseTransparentIcon);
+  otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
 
   markerLatLng = location;
   itemMarker.setMap(map);
@@ -505,6 +540,7 @@ function dataReceived(data) {
       userIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
         baseMarker.setIcon(baseTransparentIcon);
+        otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
         otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
       }
     }
@@ -618,6 +654,7 @@ function otherUserCollectedItem(userId) {
   fadeArrowToImage('arrow_red.png');
   itemMarker.setMap(null);
   baseMarker.setIcon(baseIcon);
+  otherTeamBase.marker.setIcon(otherTeamBaseIcon);
   userIdOfCarWithItem = userId;
 }
 
@@ -627,6 +664,7 @@ function userReturnedItemToBase() {
   incrementItemCount();
   collectedItem = null;
   baseMarker.setIcon(baseTransparentIcon);
+  otherTeamBase.marker.setIcon(opponentBaseTransparentIcon);
 }
 
 function incrementItemCount() {
@@ -643,6 +681,7 @@ function userCollidedWithItem(collisionItemObject) {
   collectedItem = collisionItemObject;
   itemMarker.setMap(null);
   baseMarker.setIcon(baseIcon);
+  otherTeamBase.marker.setIcon(otherTeamBaseIcon);
   itemObject.marker = null;
   destination = baseLatLng;
 }
