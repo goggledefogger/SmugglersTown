@@ -237,10 +237,12 @@ function gameJoined(gameData, isNewGame) {
     hostPeerId = peer.id;
     // first user is always on team town
     gameDataObject.teamTownObject.users = [peer.id];
+    $('#team-town-text').css('background-color', 'red');
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
     addTeamCrushToUI();
+    $('#team-crush-text').css('background-color', 'red');
   }
 }
 
