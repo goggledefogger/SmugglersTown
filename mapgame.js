@@ -22,7 +22,13 @@ var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 // team data
 // the team objects will be of this form:
 // {
-//   users: [123456789, 987654321],
+//   users: [{
+//     peerId: 123456789,
+//     username: 'roy'
+//   }, {
+//     peerId: 987654321,
+//     username: 'ham'
+//   }],
 //   baseObject: {
 //     location: {
 //       lat: 34,
@@ -236,15 +242,41 @@ function gameJoined(gameData, isNewGame) {
     // we're hosting the game ourself
     hostPeerId = peer.id;
     // first user is always on team town
-    gameDataObject.teamTownObject.users = [peer.id];
+    gameDataObject.teamTownObject.users = [{
+      peerId: peer.id,
+      username: username
+    }];
     $('#team-town-text').css('background-color', 'red');
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
     activateTeamCrushInUI();
   }
+  updateUsernamesInUI();
 }
 
+function updateUsernamesInUI() {
+  var teamTownJqueryElem = $('#team-town-usernames');
+  updateTeamUsernamesInUI(teamTownJqueryElem, gameDataObject.teamTownObject.users);
+  var teamCrushJqueryElem = $('#team-crush-usernames');
+  updateTeamUsernamesInUI(teamCrushJqueryElem, gameDataObject.teamCrushObject.users);
+}
+
+
+function updateTeamUsernamesInUI(teamUsernamesJqueryElem, userObjectsArray) {
+  // clear the current list of usernames
+  teamUsernamesJqueryElem.empty();
+  for (var i = 0; i < userObjectsArray.length; i++) {
+    var newJqueryElem = $($.parseHTML(
+      '<li id="username-' +
+      userObjectsArray[i].peerId +
+      '">' + userObjectsArray[i].username + '</li>'
+    ));
+    $(teamUsernamesJqueryElem).append(newJqueryElem);
+    // reset my username to be highlighted, in case it wasn't done before
+    $('#username-' + peer.id).css('background-color', 'red');
+  }
+}
 
 function activateTeamCrushInUI() {
   $('#team-crush-text').css('opacity', '1');
@@ -534,18 +566,37 @@ function connectedToPeer(peerJsConnection) {
     initializePeerConnection(peerJsConnection, otherUserPeerId);
     assignUserToTeam(otherUserPeerId);
   }
-
   addCarDataToUserObject(otherUserPeerId);
+  updateUsernamesInUI();
 }
 
 function assignUserToTeam(otherUserPeerId) {
+  // if the user is already on a team, ignore this
+  if (isUserOnTeam(otherUserPeerId, gameDataObject.teamTownObject.users) ||
+    isUserOnTeam(otherUserPeerId, gameDataObject.teamCrushObject.users)) {
+    return;
+  }
+
+  var userObject = {
+    peerId: otherUserPeerId,
+    username: null
+  };
   // for now, just alternate who goes on each team
   if (gameDataObject.teamTownObject.users.length > gameDataObject.teamCrushObject.users.length) {
     activateTeamCrushInUI();
-    gameDataObject.teamCrushObject.users.push(otherUserPeerId);
+    gameDataObject.teamCrushObject.users.push(userObject);
   } else {
-    gameDataObject.teamTownObject.users.push(otherUserPeerId);
+    gameDataObject.teamTownObject.users.push(userObject);
   }
+}
+
+function isUserOnTeam(peerId, userObjectsArray) {
+  for (var i = 0; i < userObjectsArray.length; i++) {
+    if (userObjectsArray[i].peerId == peerId) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function assignMyTeamInUI() {
@@ -615,8 +666,16 @@ function otherUserDisconnected(otherUserPeerId) {
 }
 
 function removeUserFromTeam(userPeerId) {
-  gameDataObject.teamTownObject.users.clean(userPeerId);
-  gameDataObject.teamCrushObject.users.clean(userPeerId);
+  for (var i = gameDataObject.teamTownObject.users.length - 1; i >= 0; i--) {
+    if (gameDataObject.teamTownObject.users[i].peerId == userPeerId) {
+      gameDataObject.teamTownObject.users.splice(i, 1);
+    }
+  }
+  for (var j = gameDataObject.teamCrushObject.users.length - 1; j >= 0; j--) {
+    if (gameDataObject.teamCrushObject.users[j].peerId == userPeerId) {
+      gameDataObject.teamCrushObject.users.splice(j, 1);
+    }
+  }
 }
 
 function removeUserFromUI(peerId) {
@@ -659,6 +718,10 @@ function dataReceived(data) {
     if (data.event.name == 'update_game_state') {
       console.log('received event: update game state');
       gameDataObject = data.event.gameDataObject;
+      // need to make this call because we can be in a situation where the host
+      // doesn't know our username yet, so we need to manually set it in our
+      // own UI first.
+      updateUsername(peer.id, username);
       updateUIWithNewGameState();
     }
     if (data.event.name == 'new_location') {
@@ -715,6 +778,7 @@ function dataReceived(data) {
     }
   }
 
+  // if the user sent a username that we haven't seen yet, set it
   if (data.peerId && data.username && !otherUsers[data.peerId].username) {
     updateUsername(data.peerId, data.username);
   }
@@ -724,7 +788,22 @@ function dataReceived(data) {
   }
 }
 
+function updateUsername(peerId, username) {
+  for (var i = 0; i < gameDataObject.teamTownObject.users.length; i++) {
+    if (gameDataObject.teamTownObject.users[i].peerId == peerId) {
+      gameDataObject.teamTownObject.users[i].username = username;
+    }
+  }
+  for (var j = 0; j < gameDataObject.teamCrushObject.users.length; j++) {
+    if (gameDataObject.teamCrushObject.users[j].peerId == peerId) {
+      gameDataObject.teamCrushObject.users[j].username = username;
+    }
+  }
+  updateUsernamesInUI();
+}
+
 function updateUIWithNewGameState() {
+  updateUsernamesInUI();
   // if someone has the item
   if (gameDataObject.peerIdOfCarWithItem) {
     itemMapObject.marker.setMap(null);
@@ -758,10 +837,6 @@ function moveItemOnMap(lat, lng) {
   console.log('moving item to new location: ' + lat + ',' + lng);
   itemMapObject.location = new google.maps.LatLng(lat, lng);
   itemMapObject.marker.setPosition(itemMapObject.location);
-}
-
-function updateUsername(peerId, username) {
-  //todo
 }
 
 function addCarDataToUserObject(peerId) {
@@ -856,7 +931,11 @@ function userReturnedItemToBase() {
 }
 
 function userIsOnTownTeam(peerId) {
-  return gameDataObject.teamTownObject.users.indexOf(peerId) >= 0;
+  for (var i = gameDataObject.teamTownObject.users.length - 1; i >= 0; i--) {
+    if (gameDataObject.teamTownObject.users[i].peerId == peerId) {
+      return true;
+    }
+  }
 }
 
 function incrementItemCount(isTeamTown) {

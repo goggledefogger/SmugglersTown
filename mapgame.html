@@ -64,7 +64,6 @@
 }
 
 .emphasized {
-
   background-color: #666;
   color: #fff;
   font-weight: bold;
@@ -81,6 +80,21 @@
 .right-aligned {
   float: right;
 }
+
+.left-aligned {
+  float: left;
+}
+
+#scores {
+  list-style-type: none;
+  margin: 0px;
+}
+
+.username-list {
+  padding: 0px 5px 0px 15px;
+}
+
+
 </style>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
 <script src="http://cdn.peerjs.com/0.3/peer.min.js"></script>
@@ -110,19 +124,29 @@ google.maps.event.addDomListener(window, 'load', initialize);
     <input class="border" type="button" id="connect-button" value="connect"/>
     <span class="border emphasized" >Peer ID: <span id="peer-id">(no peer id yet)</span></span>
     <span class="border emphasized" >STATUS: <span id="peer-connection-status" style="color: red;">Getting peer id...</span></span>
-    <div id="scores" class="right-aligned">
-      <span id="team-town-text" class="border emphasized">Team Town: <span id="num-items-team-town">0</span></span>
+    <ul id="scores" class="right-aligned columns">
+      <li id="team-town-container" class="left-aligned">
+        <span id="team-town-text" class="border emphasized">Team Town: <span id="num-items-team-town">0</span></span>
+      </li>
+      <li class="left-aligned">
+        <ul id="team-town-usernames" class="username-list"></ul>
+      </li>
+      <li id="team-crush-container" class="left-aligned">
        <span id="team-crush-text" class="border emphasized">Team Crush: <span id="num-items-team-crush">0</span></span>
-    </div>
-  </div>
-  <div id="map-body">
-    <div id="map-canvas"></div>
-    <img id="car-img" src="images/car.png"/>
-    <img id="arrow-img" src="images/arrow.png"/>
-  </div>
-  <div id="footer">
-    <input class="border" type="text" id="map-center-textbox" placeholder="Latitude,Longitude"></input>
-    <input class="border" type="button" id="set-center-button" value="Go To Location"></input>
-  </div>
+     </li>
+     <li class="left-aligned">
+       <ul id="team-crush-usernames" class="username-list"></ul>
+     </li>
+   </ul>
+ </div>
+ <div id="map-body">
+  <div id="map-canvas"></div>
+  <img id="car-img" src="images/car.png"/>
+  <img id="arrow-img" src="images/arrow.png"/>
+</div>
+<div id="footer">
+  <input class="border" type="text" id="map-center-textbox" placeholder="Latitude,Longitude"></input>
+  <input class="border" type="button" id="set-center-button" value="Go To Location"></input>
+</div>
 </body>
 </html>
