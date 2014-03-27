@@ -241,9 +241,20 @@ function gameJoined(gameData, isNewGame) {
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
-    addTeamCrushToUI();
+    activateTeamCrushInUI();
   }
 }
+
+
+function activateTeamCrushInUI() {
+  $('#team-crush-text').css('opacity', '1');
+  var teamCrushScore = 0;
+  if (gameDataObject.teamCrushObject.numItemsReturned) {
+    teamCrushScore = gameDataObject.teamCrushObject.numItemsReturned;
+  }
+  $('#num-items-team-crush').text(teamCrushScore);
+}
+
 
 function connectToAllNonHostUsers(nonHostPeerIds) {
   for (var i = 0; i < nonHostPeerIds.length; i++) {
@@ -254,7 +265,7 @@ function connectToAllNonHostUsers(nonHostPeerIds) {
 }
 
 function createTeamCrushBaseOnMap(baseLat, baseLng) {
-  teamCrushObject.baseObject = createTeamCrushBase(baseLat, baseLng);
+  gameDataObject.teamCrushObject.baseObject = createTeamCrushBase(baseLat, baseLng);
 }
 
 function bindKeyAndButtonEvents() {
@@ -530,20 +541,10 @@ function connectedToPeer(peerJsConnection) {
 function assignUserToTeam(otherUserPeerId) {
   // for now, just alternate who goes on each team
   if (gameDataObject.teamTownObject.users.length > gameDataObject.teamCrushObject.users.length) {
-    addTeamCrushToUI();
+    activateTeamCrushInUI();
     gameDataObject.teamCrushObject.users.push(otherUserPeerId);
   } else {
     gameDataObject.teamTownObject.users.push(otherUserPeerId);
-  }
-}
-
-function addTeamCrushToUI() {
-  // only add it if it hasn't been added already
-  if ($('#team-crush-text').length == 0) {
-    var teamCrushTextHtml = '<span id="team-crush-text" class="border emphasized" >Team Crush: <span id="num-items-team-crush">0</span></span>';
-    // convert HTML to jquery object
-    var teamCrushScoreDomElement = $($.parseHTML(teamCrushTextHtml));
-    $('#scores').append(teamCrushScoreDomElement);
   }
 }
 
@@ -581,11 +582,16 @@ function otherUserDisconnected(otherUserPeerId) {
   if (!otherUsers[otherUserPeerId]) {
     return;
   }
+
+  removeUserFromTeam(otherUserPeerId);
+  removeUserFromUI(otherUserPeerId);
+
   // if I am the host, I'll be the one to tell Firebase to remove this other user
   if (hostPeerId == peer.id) {
     removePeerFromGame(gameId, otherUserPeerId);
-    removeUserFromTeam(otherUserPeerId);
-    removeUserFromUI(otherUserPeerId);
+    // not sure if we want to do this, but to keep things in sync, might
+    // as well broadcast the game state to all users
+    broadcastGameStateToAllPeers();
   } else {
     // if the user who disconnected was the host, I should become a new host
     if (hostPeerId == otherUserPeerId) {
@@ -617,14 +623,21 @@ function removeUserFromUI(peerId) {
   // remove the other user's car from the map
   otherUsers[peerId].car.marker.setMap(null);
 
-  // if their team has no more users, remove their score box
-  if (teamCrushObject.users.length == 0) {
-    $('#team-crush-text').remove();
+  // if their team has no more users, grey out
+  // their score box
+  if (gameDataObject.teamCrushObject.users.length == 0) {
+    $('#team-crush-text').css('opacity', '0.3');
   }
 }
 
 function otherUserChangedLocation(lat, lng) {
   setGameToNewLocation(lat, lng);
+}
+
+function broadcastGameStateToAllPeers() {
+  for (var user in otherUsers) {
+    broadcastGameState(user);
+  }
 }
 
 function dataReceived(data) {
@@ -633,7 +646,11 @@ function dataReceived(data) {
     // state, then broadcast it to them
     if (otherUsers[data.peerId] && !otherUsers[data.peerId].hasBeenInitialized && hostPeerId == peer.id) {
       otherUsers[data.peerId].hasBeenInitialized = true;
-      broadcastGameState(data.peerId);
+      // not sure if we should do this or not, but at least it resets the game
+      // state to what we, the host, think it is
+      broadcastGameStateToAllPeers();
+      // if not that, then we should just broadcast to the new guy like this:
+      // broadcastGameState(data.peerId);
     }
     otherUsers[data.peerId].lastUpdateTime = (new Date()).getTime();
   }
@@ -781,9 +798,10 @@ function moveOtherCar(otherUserObject, newLocation) {
 }
 
 function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
-  // if this isn't the user with the item, then ignore it. We'll only
-  // transfer an item from the perspected of the user with the item
-  if (!collectedItem) {
+  // if we don't know the other car's location, or if this isn't the user with
+  //  the item, then ignore it. We'll only transfer an item from the perspected
+  //  of the user with the item
+  if (!otherCarLocation || !collectedItem) {
     return;
   }
   if (timeOfLastTransfer) {
@@ -966,7 +984,7 @@ function broadcastMyCarLocation() {
 }
 
 function broadcastGameState(otherUserPeerId) {
-  console.log('broadcasting game state');
+  console.log('broadcasting game state to ' + otherUserPeerId);
   if (!otherUsers[otherUserPeerId] || !otherUsers[otherUserPeerId].peerJsConnection) {
     return;
   }
@@ -1013,7 +1031,7 @@ function broadcastItemReturned() {
       event: {
         name: 'item_returned',
         user_id_of_car_that_returned_item: peer.id,
-        now_num_items: teamTownObject.numItemsReturned,
+        now_num_items: gameDataObject.teamTownObject.numItemsReturned,
       }
     });
   }
