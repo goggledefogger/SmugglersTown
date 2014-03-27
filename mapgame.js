@@ -571,12 +571,11 @@ function otherUserDisconnected(otherUserPeerId) {
   if (!otherUsers[otherUserPeerId]) {
     return;
   }
-
-  removeUserFromUI(otherUserPeerId);
-
   // if I am the host, I'll be the one to tell Firebase to remove this other user
   if (hostPeerId == peer.id) {
     removePeerFromGame(gameId, otherUserPeerId);
+    removeUserFromTeam(otherUserPeerId);
+    removeUserFromUI(otherUserPeerId);
   } else {
     // if the user who disconnected was the host, I should become a new host
     if (hostPeerId == otherUserPeerId) {
@@ -588,6 +587,7 @@ function otherUserDisconnected(otherUserPeerId) {
       // hostPeerId = peer.id;
     }
   }
+
   // delete that user's data
   delete otherUsers[otherUserPeerId];
 
@@ -595,6 +595,12 @@ function otherUserDisconnected(otherUserPeerId) {
   if (Object.keys(otherUsers).length == 0) {
     $('#peer-connection-status').text('waiting for a smuggler to battle...');
   }
+
+}
+
+function removeUserFromTeam(userPeerId) {
+  gameDataObject.teamTownObject.users.clean(userPeerId);
+  gameDataObject.teamCrushObject.users.clean(userPeerId);
 }
 
 function removeUserFromUI(peerId) {
@@ -881,7 +887,7 @@ function update(step) {
     } else {
       // if another user has an item, and their car has a location,
       // then constantly set the destination to their location
-      if (otherUsers[gameDataObject.peerIdOfCarWithItem].car.location) {
+      if (otherUsers[gameDataObject.peerIdOfCarWithItem] && otherUsers[gameDataObject.peerIdOfCarWithItem].car.location) {
         destination = otherUsers[gameDataObject.peerIdOfCarWithItem].car.location;
       }
     }
