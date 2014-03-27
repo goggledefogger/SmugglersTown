@@ -20,7 +20,6 @@ var itemMapObject = null;
 var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 
 // team data
-
 // the team objects will be of this form:
 // {
 //   users: [123456789, 987654321],
@@ -32,7 +31,8 @@ var mapCenter = new google.maps.LatLng(36.151103, -113.208565);
 //   },
 //   numItemsReturned: 0
 // }
-var myTeamObject = {
+var teamTownObject = {
+  users: [],
   baseObject: {
     location: {
       lat: 36.151103,
@@ -41,7 +41,16 @@ var myTeamObject = {
   },
   numItemsReturned: 0
 };
-var teamCrushObject = null;
+var teamCrushObject = {
+  users: [],
+  baseObject: {
+    location: {
+      lat: 36.151103,
+      lng: -113.208565
+    }
+  },
+  numItemsReturned: 0
+};
 
 // for time-based game loop
 var now;
@@ -89,7 +98,7 @@ var teamCrushBaseMapObject = null;
 // gameplay
 
 var gameDataObject = {
-  teamTownObject: myTeamObject,
+  teamTownObject: teamTownObject,
   teamCrushObject: teamCrushObject,
   peerIdOfCarWithItem: null,
 };
@@ -109,7 +118,6 @@ var gameDataObject = {
 
 
 var collectedItem = null;
-var otherUserNumItems = 0;
 // set the initial destination to whatever, it will be reset 
 // when an item is first placed
 var destination = new google.maps.LatLng(45.489391, -122.647586);
@@ -227,10 +235,12 @@ function gameJoined(gameData, isNewGame) {
   if (isNewGame) {
     // we're hosting the game ourself
     hostPeerId = peer.id;
-    myTeamObject.users = [peer.id];
+    // first user is always on team town
+    gameDataObject.teamTownObject.users = [peer.id];
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
+    addTeamCrushToUI();
   }
 }
 
@@ -242,11 +252,8 @@ function connectToAllNonHostUsers(nonHostPeerIds) {
   }
 }
 
-function createTeamCrushObject(teamCrushPeerIds, baseLat, baseLng) {
-  teamCrushObject = {};
-  teamCrushObject.users = teamCrushPeerIds;
+function createTeamCrushBaseOnMap(baseLat, baseLng) {
   teamCrushObject.baseObject = createTeamCrushBase(baseLat, baseLng);
-  teamCrushObject.numItemsReturned = 0;
 }
 
 function bindKeyAndButtonEvents() {
@@ -407,9 +414,9 @@ function putNewItemOnMap(location, itemId) {
 
   // set the base icon images to be the lighter ones
   myTeamBaseMapObject.marker.setIcon(baseTransparentIcon);
-  // teamCrushObject will be null if the other team isn't in the
+  // teamCrushBaseMapObject will be null if the other team isn't in the
   // game yet
-  if (teamCrushObject) {
+  if (teamCrushBaseMapObject) {
     teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
   }
 
@@ -513,20 +520,29 @@ function connectedToPeer(peerJsConnection) {
   // add the HTML for the new user
   if (!otherUsers[otherUserPeerId] || !otherUsers[otherUserPeerId].peerJsConnection) {
     initializePeerConnection(peerJsConnection, otherUserPeerId);
-    addNewUserToUI(otherUserPeerId);
+    assignUserToTeam(otherUserPeerId);
   }
 
   addCarDataToUserObject(otherUserPeerId);
 }
 
+function assignUserToTeam(otherUserPeerId) {
+  // for now, just alternate who goes on each team
+  if (gameDataObject.teamTownObject.users.length > gameDataObject.teamCrushObject.users.length) {
+    if (gameDataObject.teamCrushObject.users.length == 0) {
+      addTeamCrushToUI();
+    }
+    gameDataObject.teamCrushObject.users.push(otherUserPeerId);
+  } else {
+    gameDataObject.teamTownObject.users.push(otherUserPeerId);
+  }
+}
 
-function addNewUserToUI(newUserPeerId) {
-  var newUserScoreTextHtml = '<span id="score-' + newUserPeerId +
-    '" class="border emphasized" ><span id="username-' + newUserPeerId + '">' +
-    newUserPeerId + '</span> collected: <span class="num-items-collected">0</span></span>';
+function addTeamCrushToUI() {
+  var teamCrushTextHtml = '<span id="team-crush-text" class="border emphasized" >Team Crush collected: <span id="num-items-team-crush">0</span></span>';
   // convert HTML to jquery object
-  var newUserScoreDomElement = $($.parseHTML(newUserScoreTextHtml));
-  $('#scores').append(newUserScoreDomElement);
+  var teamCrushScoreDomElement = $($.parseHTML(teamCrushTextHtml));
+  $('#scores').append(teamCrushScoreDomElement);
 }
 
 function initializePeerConnection(peerJsConnection, otherUserPeerId) {
@@ -583,9 +599,10 @@ function removeUserFromUI(peerId) {
   // remove the other user's car from the map
   otherUsers[peerId].car.marker.setMap(null);
 
-  // remove their score box
-  var scoreElemSelector = '#score-' + peerId;
-  $(scoreElemSelector).remove();
+  // if their team has no more users, remove their score box
+  if (teamCrushObject.users.length == 0) {
+    $('#team-crush-text').remove();
+  }
 }
 
 function otherUserChangedLocation(lat, lng) {
@@ -638,7 +655,7 @@ function dataReceived(data) {
       gameDataObject.peerIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
         myTeamBaseMapObject.marker.setIcon(baseTransparentIcon);
-        if (teamCrushObject) {
+        if (teamCrushBaseMapObject) {
           teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
         }
         otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
@@ -675,6 +692,7 @@ function dataReceived(data) {
 function updateUIWithNewGameState() {
   // if someone has the item
   if (gameDataObject.peerIdOfCarWithItem) {
+    itemMapObject.marker.setMap(null);
     // if I have the item, make the destination my team's base
     if (gameDataObject.peerIdOfCarWithItem == peer.id) {
       setDestination(myTeamBaseMapObject.location, 'arrow_blue.png');
@@ -689,9 +707,15 @@ function updateUIWithNewGameState() {
       moveItemOnMap(gameDataObject.itemObject.location.lat, gameDataObject.itemObject.location.lng);
     }
     setDestination(itemMapObject.location, 'arrow.png');
-
   }
-  //TODO: update scores
+  updateScoresInUI(gameDataObject.teamTownObject.numItemsReturned, gameDataObject.teamCrushObject.numItemsReturned);
+}
+
+function updateScoresInUI(teamTownNumItemsReturned, teamCrushNumItemsReturned) {
+  $('#num-items-team-town').text(teamTownNumItemsReturned);
+  flashElement($('#num-items-team-town'));
+  $('#num-items-team-crush').text(teamCrushNumItemsReturned);
+  flashElement($('#num-items-team-crush'));
 }
 
 function moveItemOnMap(lat, lng) {
@@ -701,9 +725,7 @@ function moveItemOnMap(lat, lng) {
 }
 
 function updateUsername(peerId, username) {
-  otherUsers[peerId].username = username;
-  var userElemSelector = '#username-' + peerId;
-  $(userElemSelector).text(username);
+  //todo
 }
 
 function addCarDataToUserObject(peerId) {
@@ -723,17 +745,9 @@ function addCarDataToUserObject(peerId) {
 }
 
 function otherUserReturnedItem(otherUserPeerId, nowNumItemsForUser) {
+  gameDataObject.peerIdOfCarWithItem = null;
+  incrementItemCount(userIsOnTownTeam(otherUserPeerId))
   fadeArrowToImage('arrow.png');
-  otherUserNumItems = nowNumItemsForUser;
-  updateUserScore(otherUserPeerId, nowNumItemsForUser);
-  var scoreElemSelector = '#score-' + otherUserPeerId + ' span.num-items-collected';
-  flashElement($(scoreElemSelector));
-}
-
-function updateUserScore(peerId, userScore) {
-  otherUsers[peerId].score = userScore;
-  var scoreElemSelector = '#score-' + peerId + ' span.num-items-collected';
-  $(scoreElemSelector).text(userScore);
 }
 
 function moveOtherCar(otherUserObject, newLocation) {
@@ -783,30 +797,41 @@ function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
-  fadeArrowToImage('arrow_red.png');
+  gameDataObject.peerIdOfCarWithItem = userId;
   itemMapObject.marker.setMap(null);
+  fadeArrowToImage('arrow_red.png');
   myTeamBaseMapObject.marker.setIcon(baseIcon);
-  if (teamCrushObject) {
+  if (teamCrushBaseMapObject) {
     teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
   }
-  gameDataObject.peerIdOfCarWithItem = userId;
 }
 
 function userReturnedItemToBase() {
   console.log('user returned item to base');
+  gameDataObject.peerIdOfCarWithItem = null;
   fadeArrowToImage('arrow.png');
-  incrementItemCount();
+  incrementItemCount(userIsOnTownTeam(peer.id));
   collectedItem = null;
   myTeamBaseMapObject.marker.setIcon(baseTransparentIcon);
-  if (teamCrushObject) {
+  if (teamCrushBaseMapObject) {
     teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
   }
 }
 
-function incrementItemCount() {
-  myTeamObject.numItemsReturned++;
-  $('#num-items-collected').text(myTeamObject.numItemsReturned);
-  flashElement($('#num-items-collected'));
+function userIsOnTownTeam(peerId) {
+  return gameDataObject.teamTownObject.users.indexOf(peerId) >= 0;
+}
+
+function incrementItemCount(isTeamTown) {
+  if (isTeamTown) {
+    gameDataObject.teamTownObject.numItemsReturned++;
+    $('#num-items-team-town').text(gameDataObject.teamTownObject.numItemsReturned);
+    flashElement($('#num-items-team-town'));
+  } else {
+    gameDataObject.teamCrushObject.numItemsReturned++;
+    $('#num-items-team-crush').text(gameDataObject.teamCrushObject.numItemsReturned);
+    flashElement($('#num-items-team-crush'));
+  }
 }
 
 function flashElement(jqueryElem) {
@@ -819,7 +844,7 @@ function userCollidedWithItem(collisionItemObject) {
   collisionItemObject.location = null;
   gameDataObject.peerIdOfCarWithItem = peer.id;
   myTeamBaseMapObject.marker.setIcon(baseIcon);
-  if (teamCrushObject) {
+  if (teamCrushBaseMapObject) {
     teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
   }
   setDestination(myTeamBaseMapObject.location, 'arrow_blue.png');
@@ -969,7 +994,7 @@ function broadcastItemReturned() {
       event: {
         name: 'item_returned',
         user_id_of_car_that_returned_item: peer.id,
-        now_num_items: myTeamObject.numItemsReturned,
+        now_num_items: teamTownObject.numItemsReturned,
       }
     });
   }
