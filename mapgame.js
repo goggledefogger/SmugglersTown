@@ -484,10 +484,11 @@ function putNewItemOnMap(location, itemId) {
 
   // set the base icon images to be the lighter ones
   teamTownBaseMapObject.marker.setIcon(teamTownBaseTransparentIcon);
-  // teamCrushBaseMapObject will be null if the other team isn't in the
-  // game yet
-  if (teamCrushBaseMapObject) {
-    teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
+  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
+
+  // in case there's a lingering item, remove it
+  if (itemMapObject && itemMapObject.marker && itemMapObject.marker.map) {
+    itemMapObject.marker.setMap(null);
   }
 
   var itemMarker = new google.maps.Marker({
@@ -497,12 +498,16 @@ function putNewItemOnMap(location, itemId) {
     optimized: false,
     position: location
   });
+
   itemMapObject = {
     marker: itemMarker,
     location: location
   };
+  gameDataObject.itemObject.location = {
+    lat: location.lat(),
+    lng: location.lng()
+  };
 
-  itemMapObject.marker.setMap(map);
   setDestination(location, 'arrow.png');
   return itemId;
 }
@@ -765,7 +770,9 @@ function dataReceived(data) {
       }
     }
     if (data.event.name == 'new_item') {
-      console.log('received event: new item with id ' + data.event.id);
+      console.log('received event: new item at ' +
+        data.event.location.lat + ',' + data.event.location.lng +
+        ' with id ' + data.event.id);
       gameDataObject.peerIdOfCarWithItem = null;
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
@@ -780,9 +787,7 @@ function dataReceived(data) {
       gameDataObject.peerIdOfCarWithItem = null;
       if (data.event.user_id_of_car_that_returned_item != peer.id) {
         teamTownBaseMapObject.marker.setIcon(teamTownBaseTransparentIcon);
-        if (teamCrushBaseMapObject) {
-          teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
-        }
+        teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
         otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
       }
     }
@@ -870,6 +875,8 @@ function updateScoresInUI(teamTownNumItemsReturned, teamCrushNumItemsReturned) {
 
 function moveItemOnMap(lat, lng) {
   console.log('moving item to new location: ' + lat + ',' + lng);
+  gameDataObject.itemObject.location.lat = lat;
+  gameDataObject.itemObject.location.lng = lng;
   itemMapObject.location = new google.maps.LatLng(lat, lng);
   itemMapObject.marker.setPosition(itemMapObject.location);
 }
@@ -948,9 +955,8 @@ function otherUserCollectedItem(userId) {
   itemMapObject.marker.setMap(null);
   fadeArrowToImage('arrow_red.png');
   teamTownBaseMapObject.marker.setIcon(teamTownBaseIcon);
-  if (teamCrushBaseMapObject) {
-    teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
-  }
+  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
+
 }
 
 function userReturnedItemToBase() {
@@ -960,9 +966,7 @@ function userReturnedItemToBase() {
   incrementItemCount(userIsOnTownTeam(peer.id));
   collectedItem = null;
   teamTownBaseMapObject.marker.setIcon(teamTownBaseTransparentIcon);
-  if (teamCrushBaseMapObject) {
-    teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
-  }
+  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
 }
 
 function userIsOnTownTeam(peerId) {
@@ -995,9 +999,7 @@ function userCollidedWithItem(collisionItemObject) {
   collisionItemObject.location = null;
   gameDataObject.peerIdOfCarWithItem = peer.id;
   teamTownBaseMapObject.marker.setIcon(teamTownBaseIcon);
-  if (teamCrushBaseMapObject) {
-    teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
-  }
+  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
   setDestination(myTeamBaseMapObject.location, 'arrow_blue.png');
 }
 
