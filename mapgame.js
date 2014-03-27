@@ -242,7 +242,6 @@ function gameJoined(gameData, isNewGame) {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
     addTeamCrushToUI();
-    $('#team-crush-text').css('background-color', 'red');
   }
 }
 
@@ -531,9 +530,7 @@ function connectedToPeer(peerJsConnection) {
 function assignUserToTeam(otherUserPeerId) {
   // for now, just alternate who goes on each team
   if (gameDataObject.teamTownObject.users.length > gameDataObject.teamCrushObject.users.length) {
-    if (gameDataObject.teamCrushObject.users.length == 0) {
-      addTeamCrushToUI();
-    }
+    addTeamCrushToUI();
     gameDataObject.teamCrushObject.users.push(otherUserPeerId);
   } else {
     gameDataObject.teamTownObject.users.push(otherUserPeerId);
@@ -541,10 +538,23 @@ function assignUserToTeam(otherUserPeerId) {
 }
 
 function addTeamCrushToUI() {
-  var teamCrushTextHtml = '<span id="team-crush-text" class="border emphasized" >Team Crush collected: <span id="num-items-team-crush">0</span></span>';
-  // convert HTML to jquery object
-  var teamCrushScoreDomElement = $($.parseHTML(teamCrushTextHtml));
-  $('#scores').append(teamCrushScoreDomElement);
+  // only add it if it hasn't been added already
+  if ($('#team-crush-text').length == 0) {
+    var teamCrushTextHtml = '<span id="team-crush-text" class="border emphasized" >Team Crush: <span id="num-items-team-crush">0</span></span>';
+    // convert HTML to jquery object
+    var teamCrushScoreDomElement = $($.parseHTML(teamCrushTextHtml));
+    $('#scores').append(teamCrushScoreDomElement);
+  }
+}
+
+function assignMyTeamInUI() {
+  if (userIsOnTownTeam(peer.id)) {
+    $('#team-town-text').css('background-color', 'red');
+    $('#team-crush-text').css('background-color', '#667');
+  } else {
+    $('#team-crush-text').css('background-color', 'red');
+    $('#team-town-text').css('background-color', '#666');
+  }
 }
 
 function initializePeerConnection(peerJsConnection, otherUserPeerId) {
@@ -717,6 +727,7 @@ function updateUIWithNewGameState() {
     setDestination(itemMapObject.location, 'arrow.png');
   }
   updateScoresInUI(gameDataObject.teamTownObject.numItemsReturned, gameDataObject.teamCrushObject.numItemsReturned);
+  assignMyTeamInUI();
 }
 
 function updateScoresInUI(teamTownNumItemsReturned, teamCrushNumItemsReturned) {
