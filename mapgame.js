@@ -2,6 +2,9 @@
  * TOWN AND TRY TO DEFEAT TEAM CRUSH.  AND YOU MUST ACCEPT...
  */
 
+var keepAliveParamName = 'keepalive';
+var qs = new QueryString();
+
 // TODO: use require.js to load utilities and matchmaker.js instead of 
 // loading them in order in mapgame.html
 
@@ -1062,7 +1065,15 @@ function update(step) {
   }
 }
 
+function shouldKeepAlive() {
+  return qs.value(keepAliveParamName) == 'true';
+}
+
 function cleanupAnyDroppedConnections() {
+  if (shouldKeepAlive()) {
+    return;
+  }
+
   var timeNow = (new Date()).getTime();
   for (var user in otherUsers) {
     // if it's been longer than the timeout since we've heard from
