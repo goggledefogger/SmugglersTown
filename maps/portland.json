@@ -1,0 +1,17 @@
+{
+    "map": {
+        "name": "Portland",
+        "centerLatLng": {
+            "lat": 45.511770,
+            "lng": -122.674194
+        },
+        "teamTownBaseLatLng": {
+            "lat": 45.512853,
+            "lng": -122.668271
+        },
+        "teamCrushBaseLatLng": {
+            "lat": 45.519033,
+            "lng": -122.677112
+        }
+    }
+}

@@ -382,31 +382,32 @@ function searchAndCenterMap(searchTerm) {
 function loadMapData(mapIsReadyCallback) {
   mapDataLoaded = false;
   console.log('loading map data');
-  $.getJSON("maps/grandcanyon.json", function(json) {
+  //$.getJSON("maps/grandcanyon.json", function(json) {
+  $.getJSON("maps/portland.json", function(json) {
     console.log('map data loaded');
     mapData = json;
     mapDataLoaded = true;
     mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
     map.setCenter(mapCenter);
-    var teamTownBaseLocation = new google.maps.LatLng(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng);
+    teamTownBaseMapObject.location = new google.maps.LatLng(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng);
     teamTownBaseMapObject.marker = new google.maps.Marker({
       title: 'Team Town Base',
       map: map,
-      position: teamTownBaseLocation,
+      position: teamTownBaseMapObject.location,
       icon: teamTownBaseIcon
     });
     gameDataObject.teamCrushObject.baseObject = createTeamCrushBase(
       mapData.map.teamCrushBaseLatLng.lat,
       mapData.map.teamCrushBaseLatLng.lng
     );
-    var teamCrushBaseLocation = new google.maps.LatLng(
+    teamCrushBaseMapObject.location = new google.maps.LatLng(
       mapData.map.teamCrushBaseLatLng.lat,
       mapData.map.teamCrushBaseLatLng.lng
     );
     teamCrushBaseMapObject.marker = new google.maps.Marker({
       title: 'Team Crush Base',
       map: map,
-      position: teamCrushBaseLocation,
+      position: teamCrushBaseMapObject.location,
       icon: teamCrushBaseIcon
     });
     randomlyPutItems();
@@ -466,14 +467,16 @@ function getRandomLocationForItem() {
   // Find a random location that works, and if it's too close
   // to the base, pick another location
   var randomLocation = null;
+  var centerOfAreaLat = myTeamBaseMapObject.location.lat();
+  var centerOfAreaLng = myTeamBaseMapObject.location.lng();
   while (true) {
-    randomLat = getRandomInRange(mapCenter.lat() -
-      (widthOfAreaToPutItems / 2.0), mapCenter.lat() + (widthOfAreaToPutItems / 2.0), 7);
-    randomLng = getRandomInRange(mapCenter.lng() -
-      (heightOfAreaToPutItems / 2.0), mapCenter.lng() + (heightOfAreaToPutItems / 2.0), 7);
+    randomLat = getRandomInRange(centerOfAreaLat -
+      (widthOfAreaToPutItems / 2.0), centerOfAreaLat + (widthOfAreaToPutItems / 2.0), 7);
+    randomLng = getRandomInRange(centerOfAreaLng -
+      (heightOfAreaToPutItems / 2.0), centerOfAreaLng + (heightOfAreaToPutItems / 2.0), 7);
     console.log('trying to put item at: ' + randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng);
-    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, teamTownBaseMapObject.location) > minItemDistanceFromBase) {
+    if (google.maps.geometry.spherical.computeDistanceBetween(randomLocation, myTeamBaseMapObject.location) > minItemDistanceFromBase) {
       return randomLocation;
     }
     console.log('item too close to base, choosing another location...');
@@ -1244,9 +1247,18 @@ function getCollisionMarker() {
 }
 
 function setGameToNewLocation(lat, lng) {
-  teamTownBaseMapObject.location = new google.maps.LatLng(lat, lng);
-  teamTownBaseMapObject.marker.setPosition(teamTownBaseMapObject.location);
-  mapCenter = teamTownBaseMapObject.location;
+  myTeamBaseMapObject.location = new google.maps.LatLng(lat, lng);
+  myTeamBaseMapObject.marker.setPosition(myTeamBaseMapObject.location);
+  var newLocationObject = {
+    lat: lat,
+    lng: lng
+  };
+  if (myTeamBaseMapObject == teamTownBaseMapObject) {
+    gameDataObject.teamTownObject.baseObject.location = newLocationObject;
+  } else {
+    gameDataObject.teamCrushObject.baseObject.location = newLocationObject;
+  }
+  mapCenter = myTeamBaseMapObject.location;
   map.setCenter(mapCenter);
 }
 
