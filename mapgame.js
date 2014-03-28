@@ -498,7 +498,9 @@ function putNewItemOnMap(location, itemId) {
     map: map,
     title: 'Item',
     icon: itemIcon,
-    optimized: false,
+    //TODO: FIX STUPID GOOGLE MAPS BUG that causes the gif marker
+    //      to mysteriously not show up sometimes
+    //optimized: false,
     position: location
   });
 
@@ -506,6 +508,7 @@ function putNewItemOnMap(location, itemId) {
     marker: itemMarker,
     location: location
   };
+
   gameDataObject.itemObject.location = {
     lat: location.lat(),
     lng: location.lng()
