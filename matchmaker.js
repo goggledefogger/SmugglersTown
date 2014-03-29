@@ -6,18 +6,21 @@ var AVAILABLE_GAMES_LOCATION = 'available_games';
 var FULL_GAMES_LOCATION = 'full_games';
 var ALL_GAMES_LOCATION = 'games';
 var MAX_USERS_PER_GAME = 4;
+var GAME_CLEANUP_TIMEOUT = 30 * 1000; // in milliseconds
 
 var joinedGame = null;
+var myWorker = null;
 
 // this is one of the public points of entry
 function joinOrCreateGame(username, peerId, connectToUsersCallback, joinedGameCallback) {
+  callAsyncCleanupInactiveGames();
   console.log('trying to join game');
+  initializeServerHelperWorker();
   var availableGamesDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION);
   availableGamesDataRef.once('value', function(data) {
-
     // only join a game if one isn't joined already
     if (joinedGame == null) {
-      joinedGame = 1;
+      joinedGame = -1;
       if (data.val() === null) {
         // there are no available games, so create one
         var gameData = createNewGame(username, peerId);
@@ -25,17 +28,130 @@ function joinOrCreateGame(username, peerId, connectToUsersCallback, joinedGameCa
       } else {
         var jsonObj = data.val();
         var gameId;
+
+        // stupid javascript won't tell me how many game elements
+        // are in the jsonObj, so count em up
+        var numAvailableGames = 0;
         for (var key in jsonObj) {
+          numAvailableGames++;
+        }
+
+        // iterate through the child games and try
+        // to join each one
+        var counter = 0;
+        for (var key in jsonObj) {
+          counter++;
           if (jsonObj.hasOwnProperty(key)) {
             gameId = jsonObj[key];
-            break;
+            getGameLastUpdateTime(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTime, counter == numAvailableGames);
           }
         }
-        // for now, just join the first game in the array
-        joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
       }
     }
   });
+}
+
+function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback) {
+  // if the game is still active join it
+  if (lastUpdateTime) {
+    if (!isTimeoutTooLong(lastUpdateTime)) {
+      joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
+      return;
+    } else {
+      callAsyncCleanupInactiveGames();
+    }
+  }
+  // if we got here, and this is the last game, that means there are no available games
+  // so create one
+  if (isTheLastGame) {
+    console.log('no available games found, only inactive ones, so creating a new one...');
+    var gameData = createNewGame(username, peerId);
+    joinedGameCallback(gameData, true);
+  }
+}
+
+function getGameLastUpdateTime(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTimeCallback, isTheLastGame) {
+  gameRef.child(ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
+    if (data.val() && data.val().lastUpdateTime) {
+      console.log('found update time: ' + data.val().lastUpdateTime)
+      doneGettingUpdateTimeCallback(data.val().lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback);
+    }
+  });
+}
+
+function initializeServerPing() {
+  setServerStatusAsStillActive();
+  window.setInterval(setServerStatusAsStillActive, 10000);
+}
+
+function initializeServerHelperWorker() {
+  if (typeof(Worker) !== "undefined") {
+    myWorker = new Worker("asyncmessager.js");
+    myWorker.addEventListener('message', processMessageEvent, false);
+  } else {
+    console.log("Sorry, your browser does not support Web Workers...");
+  }
+}
+
+function callAsyncCleanupInactiveGames() {
+  // do it on a web worker thread
+  if (myWorker) {
+    myWorker.postMessage({
+      cmd: 'cleanup_inactive_games'
+    });
+  }
+}
+
+
+function setServerStatusAsStillActive() {
+  console.log('pinging server');
+  gameRef.child(ALL_GAMES_LOCATION).child(joinedGame).child('lastUpdateTime').set((new Date()).getTime());
+}
+
+function cleanupGames() {
+  console.log('cleaning up inactive games');
+  var gameDataRef = gameRef.child(ALL_GAMES_LOCATION).once('value', function(dataSnapshot) {
+    dataSnapshot.forEach(function(childSnapshot) {
+      var shouldDeleteGame = false;
+      var gameData = childSnapshot.val();
+      if (!gameData) {
+        shouldDeleteGame = true;
+      }
+      if (gameData.users == null || gameData.users.length == 0) {
+        console.log('game has no users');
+        shouldDeleteGame = true;
+      }
+      if (isTimeoutTooLong(gameData.lastUpdateTime)) {
+        console.log("game hasn't been updated since " + gameData.lastUpdateTime);
+        shouldDeleteGame = true;
+      }
+
+      if (shouldDeleteGame) {
+        deleteGame(childSnapshot.name());
+        childSnapshot.ref().remove();
+
+      }
+    });
+  });
+}
+
+
+function isTimeoutTooLong(lastUpdateTime) {
+  if (!lastUpdateTime) {
+    return false;
+  }
+  var currentTime = (new Date()).getTime();
+  return (currentTime - lastUpdateTime > GAME_CLEANUP_TIMEOUT);
+}
+
+function processMessageEvent(event) {
+  switch (event.data) {
+    case 'cleanup_inactive_games':
+      cleanupGames();
+      break;
+    default:
+      break;
+  }
 }
 
 // another public point of entry
@@ -111,6 +227,7 @@ function switchToNewHost(gameId, newHostPeerId) {
 
 function deleteGame(gameId) {
   removeGameFromAvailableGames(gameId);
+  removeGameFromFullGames(gameId);
   removeGame(gameId);
 }
 
@@ -135,6 +252,7 @@ function createNewGame(username, peerId) {
   var newAvailableGameDataRef = gameRef.child(AVAILABLE_GAMES_LOCATION).child(gameId);
   newAvailableGameDataRef.set(gameId);
   joinedGame = gameId;
+  initializeServerPing();
   return gameData;
 }
 
@@ -146,6 +264,7 @@ function createNewGameId() {
 }
 
 function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback) {
+  joinedGame = gameId;
   asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameData);
 };
 
@@ -175,7 +294,6 @@ function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUsersC
   var gameDataRef = gameDataSnapshot.ref();
   gameDataRef.set(gameData);
   console.log('joining game ' + gameData.id);
-  joinedGame = gameData.id;
   // Firebase weirdness: the users array can still have undefined elements
   // which represents users that have left the game. So trim out the 
   // undefined elements to see the actual array of current users
@@ -187,6 +305,7 @@ function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUsersC
     peerIdsArray.push(gameData.users[j].peerId);
   }
   connectToUsersCallback(peerIdsArray);
+  initializeServerPing();
   joinedGameCallback(gameData, false);
 }
 
