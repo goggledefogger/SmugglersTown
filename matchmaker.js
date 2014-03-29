@@ -264,6 +264,10 @@ function createNewGameId() {
 }
 
 function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback) {
+  // if a game has already been joined on another thread, don't join another one
+  if (joinedGame && joinedGame >= 0) {
+    return;
+  }
   joinedGame = gameId;
   asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameData);
 };
