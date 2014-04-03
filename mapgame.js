@@ -751,7 +751,9 @@ function dataReceived(data) {
       // if not that, then we should just broadcast to the new guy like this:
       // broadcastGameState(data.peerId);
     }
-    otherUsers[data.peerId].lastUpdateTime = (new Date()).getTime();
+    if (otherUsers[data.peerId]) {
+      otherUsers[data.peerId].lastUpdateTime = (new Date()).getTime();
+    }
   }
 
   if (data.event) {
