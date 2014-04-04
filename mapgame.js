@@ -77,7 +77,11 @@ var hostPeerId = null;
 // car properties
 var rotation = 0;
 var deceleration = 1.1;
-var maxSpeed = 18;
+var MAX_NORMAL_SPEED = 18;
+var MAX_BOOST_SPEED = 40;
+var BOOST_FACTOR = 1.07;
+var BOOST_CONSUMPTION_RATE = 0.5;
+var maxSpeed = MAX_NORMAL_SPEED;
 var rotationCss = '';
 var arrowRotationCss = '';
 var latitudeSpeedFactor = 1000000;
@@ -221,6 +225,7 @@ function initialize() {
   leftDown = false;
   upDown = false;
   downDown = false;
+  ctrlDown = false;
 
   speed = 0;
   rotation = 0;
@@ -232,8 +237,18 @@ function initialize() {
 
   bindKeyAndButtonEvents();
 
+  initializeBoostBar();
+
   // start the game loop
   requestAnimationFrame(frame);
+}
+
+function initializeBoostBar() {
+  $(function() {
+    $("#boost-bar").progressbar({
+      value: 100
+    });
+  });
 }
 
 function mapIsReady() {
@@ -521,8 +536,39 @@ function putNewItemOnMap(location, itemId) {
   return itemId;
 }
 
+function handleBoosting() {
+  maxSpeed = MAX_NORMAL_SPEED;
+  if ($('#boost-bar').progressbar("value")) {
+    var boostBarValue = $('#boost-bar').progressbar("value");
+    if (ctrlDown && boostBarValue > 0) {
+      boostBarValue -= BOOST_CONSUMPTION_RATE;
+      $('#boost-bar').progressbar("value", boostBarValue);
+      maxSpeed = MAX_BOOST_SPEED;
+      speed *= BOOST_FACTOR;
+      if (Math.abs(speed) > maxSpeed) {
+        if (speed < 0) {
+          speed = -maxSpeed;
+        } else {
+          speed = maxSpeed;
+        }
+      }
+      horizontalSpeed *= BOOST_FACTOR;
+      if (Math.abs(horizontalSpeed) > maxSpeed) {
+        if (horizontalSpeed < 0) {
+          horizontalSpeed = -maxSpeed;
+        } else {
+          horizontalSpeed = maxSpeed;
+        }
+      }
+    }
+  }
+
+  return maxSpeed;
+}
 
 function moveCar() {
+  maxSpeed = handleBoosting();
+
   // if Up or Down key is pressed, change the speed. Otherwise,
   // decelerate at a standard rate
   if (upDown || downDown) {
@@ -537,12 +583,6 @@ function moveCar() {
       }
     }
 
-  } else {
-    if (speed > -0.01 && speed < 0.01) {
-      speed = 0;
-    } else {
-      speed /= deceleration;
-    }
   }
 
   // if Left or Right key is pressed, change the horizontal speed.
@@ -558,7 +598,17 @@ function moveCar() {
         horizontalSpeed -= 1;
       }
     }
-  } else {
+  }
+
+  if ((!upDown && !downDown) || (!ctrlDown && Math.abs(speed) > MAX_NORMAL_SPEED)) {
+    if (speed > -0.01 && speed < 0.01) {
+      speed = 0;
+    } else {
+      speed /= deceleration;
+    }
+  }
+
+  if ((!leftDown && !rightDown) || (!ctrlDown && Math.abs(horizontalSpeed) > MAX_NORMAL_SPEED)) {
     if (horizontalSpeed > -0.01 && horizontalSpeed < 0.01) {
       horizontalSpeed = 0;
     } else {
@@ -1287,6 +1337,8 @@ function onKeyDown(evt) {
     upDown = true;
   } else if (evt.keyCode == 40) {
     downDown = true;
+  } else if (evt.keyCode == 17) {
+    ctrlDown = true;
   }
 }
 
@@ -1299,6 +1351,8 @@ function onKeyUp(evt) {
     upDown = false;
   } else if (evt.keyCode == 40) {
     downDown = false;
+  } else if (evt.keyCode == 17) {
+    ctrlDown = false;
   }
 }
 

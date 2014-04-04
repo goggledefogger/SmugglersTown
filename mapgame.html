@@ -37,6 +37,15 @@
   margin-left: -30px;
 }
 
+#boost-bar {
+  position: absolute;
+  top: 10%;
+  left: 5%;
+  width: 100px;
+  height: 20px;
+  margin-left: -30px;
+}
+
 #peer-id {
   font-family:monospace;
   font-weight:bold;
@@ -144,6 +153,7 @@ google.maps.event.addDomListener(window, 'load', initialize);
   <div id="map-canvas"></div>
   <img id="car-img" src="images/car.png"/>
   <img id="arrow-img" src="images/arrow.png"/>
+  <div id="boost-bar"></div>
 </div>
 <div id="footer">
   <input class="border" type="text" id="map-center-textbox" placeholder="Latitude,Longitude"></input>
