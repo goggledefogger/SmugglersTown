@@ -591,7 +591,9 @@ function connectToPeer(otherUserPeerId) {
     connectedToPeer(peerJsConnection);
   });
   peerJsConnection.on('error', function(err) {
-    alert(err);
+    console.log("PEERJS ERROR: ");
+    console.log(err);
+    throw "PeerJS connection error";
   });
 }
 
@@ -677,29 +679,22 @@ function otherUserDisconnected(otherUserPeerId) {
   removeUserFromTeam(otherUserPeerId);
   removeUserFromUI(otherUserPeerId);
 
-  // if I am the host, I'll be the one to tell Firebase to remove this other user
-  if (hostPeerId == peer.id) {
-    removePeerFromGame(gameId, otherUserPeerId);
-    // not sure if we want to do this, but to keep things in sync, might
-    // as well broadcast the game state to all users
-    broadcastGameStateToAllPeers();
-  } else {
-    // if the user who disconnected was the host, I should become a new host
-    if (hostPeerId == otherUserPeerId) {
-      // TODO: figure out how to only do this if the disconnect was initiated
-      // by the existing host. We don't want this code to run if this user
-      // was the one to disconnect
+  // remove this user from the game in Firebase:
+  removePeerFromGame(gameId, otherUserPeerId);
 
-      // switchToNewHost(gameId, peer.id);
-      // hostPeerId = peer.id;
-    }
+  if (hostPeerId == otherUserPeerId) {
+    // if that user was the host, set us as the new host
+    hostPeerId = peer.id;
+    switchToNewHost(gameId, peer.id);
   }
 
   // delete that user's data
   delete otherUsers[otherUserPeerId];
 
-  // if there are no users left, show the waiting message
-  if (Object.keys(otherUsers).length == 0) {
+  // if there any users left, broadcast them the new game state
+  if (Object.keys(otherUsers).length > 0) {
+    broadcastGameStateToAllPeers();
+  } else {
     $('#peer-connection-status').text('waiting for a smuggler to battle...');
   }
 
@@ -727,6 +722,8 @@ function removeUserFromUI(peerId) {
   if (gameDataObject.teamCrushObject.users.length == 0) {
     $('#team-crush-text').css('opacity', '0.3');
   }
+
+  updateUsernamesInUI();
 }
 
 function otherUserChangedLocation(lat, lng) {
