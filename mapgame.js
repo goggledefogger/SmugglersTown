@@ -280,7 +280,8 @@ function gameJoined(gameData, isNewGame) {
       peerId: peer.id,
       username: username
     }];
-    $('#team-town-text').css('background-color', 'red');
+    $('#team-town-text').css('background-color', 'yellow');
+    $('#team-town-text').css('color', 'black');
   } else {
     // someone else is already the host
     hostPeerId = gameData.hostPeerId;
@@ -308,8 +309,6 @@ function updateTeamUsernamesInUI(teamUsernamesJqueryElem, userObjectsArray) {
       '">' + userObjectsArray[i].username + '</li>'
     ));
     $(teamUsernamesJqueryElem).append(newJqueryElem);
-    // reset my username to be highlighted, in case it wasn't done before
-    $('#username-' + peer.id).css('background-color', 'red');
   }
 }
 
@@ -715,7 +714,8 @@ function isUserOnTeam(peerId, userObjectsArray) {
 
 function assignMyTeamInUI() {
   if (userIsOnTownTeam(peer.id)) {
-    $('#team-town-text').css('background-color', 'red');
+    $('#team-town-text').css('background-color', 'yellow');
+    $('#team-town-text').css('color', 'black');
     $('#team-crush-text').css('background-color', '#667');
   } else {
     $('#team-crush-text').css('background-color', 'red');
@@ -1018,10 +1018,36 @@ function moveOtherCar(otherUserObject, newLocation) {
   // if the other car has an item, update the destination
   // to be it
   if (gameDataObject.peerIdOfCarWithItem == otherUserObject.peerId) {
-    setDestination(newLocation, 'arrow_red.png');
+    var arrowImg = 'arrow_red.png';
+    if (userIsOnMyTeam(otherUserObject.peerId)) {
+      arrowImg = 'arrow_green_blue.png';
+    }
+    setDestination(newLocation, arrowImg);
   }
   transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
   otherUserObject.car.marker.setPosition(otherUserObject.car.location);
+}
+
+function userIsOnMyTeam(otherUserPeerId) {
+  var myTeam = null;
+  var otherUserTeam = null;
+  for (var i = 0; i < gameDataObject.teamTownObject.users.length; i++) {
+    if (gameDataObject.teamTownObject.users[i].peerId == peer.id) {
+      myTeam = 'town';
+    }
+    if (gameDataObject.teamTownObject.users[i].peerId == otherUserPeerId) {
+      otherUserTeam = 'town';
+    }
+  }
+  for (var i = 0; i < gameDataObject.teamCrushObject.users.length; i++) {
+    if (gameDataObject.teamCrushObject.users[i].peerId == peer.id) {
+      myTeam = 'crush';
+    }
+    if (gameDataObject.teamCrushObject.users[i].peerId == otherUserPeerId) {
+      otherUserTeam = 'crush';
+    }
+  }
+  return myTeam == otherUserTeam;
 }
 
 function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
@@ -1056,14 +1082,22 @@ function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
   broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
   collectedItem = null;
   gameDataObject.peerIdOfCarWithItem = toUserPeerId;
-  setDestination(otherUsers[toUserPeerId].car.location, 'arrow_red.png');
+  var arrowImg = 'arrow_red.png';
+  if (userIsOnMyTeam(toUserPeerId)) {
+    arrowImg = 'arrow_green_blue.png';
+  }
+  setDestination(otherUsers[toUserPeerId].car.location, arrowImg);
 }
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
   gameDataObject.peerIdOfCarWithItem = userId;
   itemMapObject.marker.setMap(null);
-  fadeArrowToImage('arrow_red.png');
+  var arrowImg = 'arrow_red.png';
+  if (userIsOnMyTeam(userId)) {
+    arrowImg = 'arrow_green_blue.png';
+  }
+  fadeArrowToImage(arrowImg);
   teamTownBaseMapObject.marker.setIcon(teamTownBaseIcon);
   teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
 
