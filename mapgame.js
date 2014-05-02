@@ -115,12 +115,20 @@ var gameDataObject = {
   teamTownObject: teamTownObject,
   teamCrushObject: teamCrushObject,
   peerIdOfCarWithItem: null,
+  initialLocation: {
+    lat: mapCenter.lat(),
+    lng: mapCenter.lng()
+  }
 };
 // this will be of the form
 // {
 //   teamTownObject: <team_object>,
 //   teamCrushObject: <team_object>,
 //   peerIdOfCarWithItem: null,
+//   initialLocation: {
+//     lat: 35,
+//     lng: -132
+// }
 //   itemObject: {
 //     id: 576,
 //     location: {
@@ -348,8 +356,8 @@ function bindKeyAndButtonEvents() {
       return;
     }
     console.log('setting center to: ' + searchTerm);
-    newLocation = searchAndCenterMap(searchTerm);
-    broadcastNewLocation(newLocation);
+    searchAndCenterMap(searchTerm);
+    broadcastNewLocation(mapCenter);
     randomlyPutItems();
   });
   window.onbeforeunload = disconnectFromGame;
@@ -404,9 +412,7 @@ function searchAndCenterMap(searchTerm) {
   }
   var latString = parts[0];
   var lngString = parts[1];
-  var location = new google.maps.LatLng(latString, lngString);
   setGameToNewLocation(latString, lngString);
-  return location;
 }
 
 function loadMapData(mapIsReadyCallback) {
@@ -419,62 +425,79 @@ function loadMapData(mapIsReadyCallback) {
     mapDataLoaded = true;
     mapCenter = new google.maps.LatLng(mapData.map.centerLatLng.lat, mapData.map.centerLatLng.lng);
     map.setCenter(mapCenter);
-    teamTownBaseMapObject.location = new google.maps.LatLng(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng);
-    teamTownBaseMapObject.marker = new google.maps.Marker({
-      title: 'Team Town Base',
-      map: map,
-      position: teamTownBaseMapObject.location,
-      icon: teamTownBaseIcon
-    });
-    gameDataObject.teamCrushObject.baseObject = createTeamCrushBase(
-      mapData.map.teamCrushBaseLatLng.lat,
-      mapData.map.teamCrushBaseLatLng.lng
-    );
-    teamCrushBaseMapObject.location = new google.maps.LatLng(
-      mapData.map.teamCrushBaseLatLng.lat,
-      mapData.map.teamCrushBaseLatLng.lng
-    );
-    teamCrushBaseMapObject.marker = new google.maps.Marker({
-      title: 'Team Crush Base',
-      map: map,
-      position: teamCrushBaseMapObject.location,
-      icon: teamCrushBaseIcon
-    });
+    gameDataObject.initialLocation = {
+      lat: mapCenter.lat(),
+      lng: mapCenter.lng()
+    };
+
+    createTeamTownBase(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng);
+    createTeamCrushBase(mapData.map.teamCrushBaseLatLng.lat, mapData.map.teamCrushBaseLatLng.lng);
+    myTeamBaseMapObject = teamTownBaseMapObject;
+
     randomlyPutItems();
     mapIsReadyCallback();
   });
 }
 
-function createTeamCrushMapObject(baseLat, baseLng) {
-  var teamCrushBaseLocation = new google.maps.LatLng(mapData.map.teamTownBaseLatLng.lat, mapData.map.teamTownBaseLatLng.lng);
-  teamCrushBaseMapObject.marker = new google.maps.Marker({
-    title: 'Team Crush Base',
+function createTeamTownBase(lat, lng) {
+  gameDataObject.teamTownObject.baseObject = createTeamTownBaseObject(lat, lng);
+  createTeamTownBaseMapObject(lat, lng);
+}
+
+function createTeamCrushBase(lat, lng) {
+  gameDataObject.teamCrushObject.baseObject = createTeamCrushBaseObject(lat, lng);
+  createTeamCrushBaseMapObject(lat, lng);
+}
+
+function createTeamTownBaseMapObject(lat, lng) {
+  // if there's already a team Town base on the map, remove it
+  if (teamTownBaseMapObject && teamTownBaseMapObject.marker) {
+    teamTownBaseMapObject.marker.setMap(null);
+  }
+
+  teamTownBaseMapObject = {};
+  teamTownBaseMapObject.location = new google.maps.LatLng(lat, lng);
+  teamTownBaseMapObject.marker = new google.maps.Marker({
+    title: 'Team Town Base',
     map: map,
-    position: teamCrushBaseLocation,
+    position: teamTownBaseMapObject.location,
     icon: teamTownBaseIcon
   });
 }
 
-function createTeamCrushBase(lat, lng) {
+function createTeamTownBaseObject(lat, lng) {
+  var teamTownBaseObject = {};
+  teamTownBaseObject.location = {
+    lat: lat,
+    lng: lng
+  };
+
+  return teamTownBaseObject;
+}
+
+function createTeamCrushBaseMapObject(lat, lng) {
   // if there's already a team Crush base on the map, remove it
   if (teamCrushBaseMapObject && teamCrushBaseMapObject.marker) {
     teamCrushBaseMapObject.marker.setMap(null);
   }
 
-  var teamCrushBaseObject = {};
-  teamCrushBaseObject.location = {
-    lat: lat,
-    lng: lng
-  };
-
   teamCrushBaseMapObject = {};
-  teamCrushBaseMapObject.location = new google.maps.LatLng(teamCrushBaseObject.location.lat, teamCrushBaseObject.location.lng);
+  teamCrushBaseMapObject.location = new google.maps.LatLng(lat, lng);
   teamCrushBaseMapObject.marker = new google.maps.Marker({
     title: 'Team Crush Base',
     map: map,
     position: teamCrushBaseMapObject.location,
     icon: teamCrushBaseIcon
   });
+}
+
+function createTeamCrushBaseObject(lat, lng) {
+
+  var teamCrushBaseObject = {};
+  teamCrushBaseObject.location = {
+    lat: lat,
+    lng: lng
+  };
 
   return teamCrushBaseObject;
 }
@@ -532,9 +555,9 @@ function putNewItemOnMap(location, itemId) {
     map: map,
     title: 'Item',
     icon: itemIcon,
-    //TODO: FIX STUPID GOOGLE MAPS BUG that causes the gif marker
-    //      to mysteriously not show up sometimes
-    //optimized: false,
+    // //TODO: FIX STUPID GOOGLE MAPS BUG that causes the gif marker
+    // //to mysteriously not show up sometimes
+    // optimized: false,
     position: location
   });
 
@@ -554,7 +577,7 @@ function putNewItemOnMap(location, itemId) {
 
 function handleBoosting() {
   maxSpeed = MAX_NORMAL_SPEED;
-  if ($('#boost-bar').progressbar("value")) {
+  if ($('#boost-bar').progressbar("value") || $('#boost-bar').progressbar("value") == 0) {
     var boostBarValue = $('#boost-bar').progressbar("value");
     if (ctrlDown && boostBarValue > 0) {
       boostBarValue -= BOOST_CONSUMPTION_RATE;
@@ -576,6 +599,9 @@ function handleBoosting() {
           horizontalSpeed = maxSpeed;
         }
       }
+    }
+    if (ctrlDown && boostBarValue <= 0) {
+      flashElement($('#boost-bar'));
     }
   }
 
@@ -834,6 +860,16 @@ function dataReceived(data) {
   if (data.event) {
     if (data.event.name == 'update_game_state') {
       console.log('received event: update game state');
+      // we only want to recenter the map in the case that this is a new user
+      // joining for the first time, and the way to tell that is to see if the
+      // initial location has changed.  Once the user is already joined, if a
+      // location change is initiated, that will use the 'new_location' event 
+      if (parseFloat(data.event.gameDataObject.initialLocation.lat) != parseFloat(gameDataObject.initialLocation.lat) ||
+        parseFloat(data.event.gameDataObject.initialLocation.lng) != parseFloat(gameDataObject.initialLocation.lng)) {
+        map.setCenter(new google.maps.LatLng(
+          data.event.gameDataObject.initialLocation.lat,
+          data.event.gameDataObject.initialLocation.lng));
+      }
       gameDataObject = data.event.gameDataObject;
       // need to make this call because we can be in a situation where the host
       // doesn't know our username yet, so we need to manually set it in our
@@ -930,6 +966,10 @@ function updateUsername(peerId, username) {
 }
 
 function updateUIWithNewGameState() {
+  // recenter the map
+  console.log('new location received: ' + gameDataObject.initialLocation);
+  mapCenter = new google.maps.LatLng(gameDataObject.initialLocation.lat, gameDataObject.initialLocation.lng);
+  updateBaseLocationsInUI();
   updateUsernamesInUI();
   // if someone has the item
   if (gameDataObject.peerIdOfCarWithItem) {
@@ -951,6 +991,15 @@ function updateUIWithNewGameState() {
   }
   updateScoresInUI(gameDataObject.teamTownObject.numItemsReturned, gameDataObject.teamCrushObject.numItemsReturned);
   assignMyTeamInUI();
+}
+
+function updateBaseLocationsInUI() {
+  createTeamTownBaseMapObject(
+    gameDataObject.teamTownObject.baseObject.location.lat,
+    gameDataObject.teamTownObject.baseObject.location.lng);
+  createTeamCrushBaseMapObject(
+    gameDataObject.teamCrushObject.baseObject.location.lat,
+    gameDataObject.teamCrushObject.baseObject.location.lng);
 }
 
 function updateCarIcons() {
@@ -1382,18 +1431,14 @@ function getCollisionMarker() {
 }
 
 function setGameToNewLocation(lat, lng) {
-  myTeamBaseMapObject.location = new google.maps.LatLng(lat, lng);
-  myTeamBaseMapObject.marker.setPosition(myTeamBaseMapObject.location);
-  var newLocationObject = {
+  gameDataObject.initialLocation = {
     lat: lat,
     lng: lng
   };
-  if (myTeamBaseMapObject == teamTownBaseMapObject) {
-    gameDataObject.teamTownObject.baseObject.location = newLocationObject;
-  } else {
-    gameDataObject.teamCrushObject.baseObject.location = newLocationObject;
-  }
-  mapCenter = myTeamBaseMapObject.location;
+  createTeamTownBase(lat, lng);
+  createTeamCrushBase((parseFloat(lat) + 0.006).toString(), (parseFloat(lng) + 0.008).toString());
+  assignMyTeamBase();
+  mapCenter = new google.maps.LatLng(lat, lng);
   map.setCenter(mapCenter);
 }
 
