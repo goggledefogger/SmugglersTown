@@ -18,11 +18,11 @@ module.exports = MatchmakerTown;
  */
 function MatchmakerTown(firebaseBaseUrl) {
   if (!(this instanceof MatchmakerTown))
-    return new MatchmakerTown(options);
+    return new MatchmakerTown(firebaseBaseUrl);
 
   // The root of your game data.
   this.GAME_LOCATION = firebaseBaseUrl;
-  this.gameRef = new Firebase(GAME_LOCATION);
+  this.gameRef = new Firebase(this.GAME_LOCATION);
 
   this.AVAILABLE_GAMES_LOCATION = 'available_games';
   this.FULL_GAMES_LOCATION = 'full_games';
