@@ -11,6 +11,7 @@
  */
 //var inherits = require('inherits');
 //var EventEmitter = require('events').EventEmitter;
+var MatchmakerTown = require('./matchmaker.js');
 
 /**
  *  export class
@@ -26,7 +27,7 @@ function SmugglersTown(firebaseBaseUrl) {
   this.keepAliveParamName = 'keepalive';
   this.qs = new QueryString();
 
-  this.matchmakerTown = require('./matchmaker.js')
+  this.matchmakerTown = new MatchmakerTown();
 
   this.map; // the map canvas from the Google Maps v3 javascript API
   this.mapZoomLevel = 18;
