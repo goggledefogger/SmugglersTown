@@ -3,12 +3,6 @@
  */
 
 /**
- *  deps
- */
-//var inherits = require('inherits');
-//var EventEmitter = require('events').EventEmitter;
-
-/**
  *  export class
  */
 module.exports = MatchmakerTown;
@@ -32,10 +26,8 @@ function MatchmakerTown(firebaseBaseUrl) {
 
   this.joinedGame = null;
   this.myWorker = null;
-  //  EventEmitter.call(this);
 
 }
-//inherits(MatchmakerTown, EventEmitter);
 
 /**
  *  connect to a game
@@ -45,7 +37,7 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
 
   callAsyncCleanupInactiveGames.call(this);
   console.log('trying to join game');
-  initializeServerHelperWorker.call(this);
+  initializeServerHelperWorker.call(this, window);
   var availableGamesDataRef = this.gameRef.child(this.AVAILABLE_GAMES_LOCATION);
   availableGamesDataRef.once('value', function(data) {
     // only join a game if one isn't joined already
@@ -54,7 +46,7 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
       if (data.val() === null) {
         // there are no available games, so create one
         var gameData = createNewGame.call(self, username, peerId);
-        joinedGameCallback.call(self, gameData, true);
+        joinedGameCallback(gameData, true);
       } else {
         var jsonObj = data.val();
         var gameId;
@@ -73,7 +65,7 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
           counter++;
           if (jsonObj.hasOwnProperty(key)) {
             gameId = jsonObj[key];
-            getGameLastUpdateTime.call(self, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, self.doneGettingUpdateTime, counter == numAvailableGames);
+            getGameLastUpdateTime.call(self, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTime, counter == numAvailableGames, self);
           }
         }
       }
@@ -123,41 +115,42 @@ function removePeerFromGame(gameId, peerId) {
 
 
 
-function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback) {
+function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback, scope) {
   // if the game is still active join it
   if (lastUpdateTime) {
-    if (!isTimeoutTooLong.call(this, lastUpdateTime)) {
-      joinExistingGame.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
+    if (!isTimeoutTooLong.call(scope, lastUpdateTime)) {
+      joinExistingGame.call(scope, gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
       return;
     } else {
-      callAsyncCleanupInactiveGames.call(this);
+      callAsyncCleanupInactiveGames.call(scope);
     }
   }
   // if we got here, and this is the last game, that means there are no available games
   // so create one
   if (isTheLastGame) {
     console.log('no available games found, only inactive ones, so creating a new one...');
-    var gameData = createNewGame.call(this, username, peerId);
-    joinedGameCallback.call(this, gameData, true);
+    var gameData = createNewGame.call(scope, username, peerId);
+    joinedGameCallback(gameData, true);
   }
 }
 
 function getGameLastUpdateTime(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTimeCallback, isTheLastGame) {
+  var self = this;
   this.gameRef.child(this.ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
     if (data.val() && data.val().lastUpdateTime) {
       console.log('found update time: ' + data.val().lastUpdateTime)
-      doneGettingUpdateTimeCallback(data.val().lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback);
+      doneGettingUpdateTimeCallback(data.val().lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback, self);
     }
   });
 }
 
 function initializeServerPing() {
-  this.setServerStatusAsStillActive();
+  setServerStatusAsStillActive.call(this);
   window.setInterval(this.setServerStatusAsStillActive, 10000);
 }
 
-function initializeServerHelperWorker() {
-  if (typeof(this.Worker) !== "undefined") {
+function initializeServerHelperWorker(windowObject) {
+  if (typeof(windowObject.Worker) !== "undefined") {
     this.myWorker = new Worker("asyncmessager.js");
     this.myWorker.addEventListener('message', this.processMessageEvent, false);
   } else {
@@ -181,6 +174,8 @@ function setServerStatusAsStillActive() {
 }
 
 function cleanupGames() {
+  var self = this;
+
   console.log('cleaning up inactive games');
   var gameDataRef = this.gameRef.child(this.ALL_GAMES_LOCATION).once('value', function(dataSnapshot) {
     dataSnapshot.forEach(function(childSnapshot) {
@@ -193,13 +188,13 @@ function cleanupGames() {
         console.log('game has no users');
         shouldDeleteGame = true;
       }
-      if (this.isTimeoutTooLong(gameData.lastUpdateTime)) {
+      if (isTimeoutTooLong.call(self, gameData.lastUpdateTime)) {
         console.log("game hasn't been updated since " + gameData.lastUpdateTime);
         shouldDeleteGame = true;
       }
 
       if (shouldDeleteGame) {
-        this.deleteGame(childSnapshot.name());
+        deleteGame(self, childSnapshot.name());
         childSnapshot.ref().remove();
 
       }
@@ -219,7 +214,7 @@ function isTimeoutTooLong(lastUpdateTime) {
 function processMessageEvent(event) {
   switch (event.data) {
     case 'cleanup_inactive_games':
-      this.cleanupGames();
+      cleanupGames.self();
       break;
     default:
       break;
@@ -228,6 +223,8 @@ function processMessageEvent(event) {
 
 
 function findNewHostPeerId(gameId, existingHostPeerId, callback) {
+  var self = this;
+
   // reset the hostPeerId so it prevents the leaving host's browser
   // if it tries to switch again before this is done
   this.gameRef.child(this.ALL_GAMES_LOCATION).child(gameId).child('hostPeerId').remove();
@@ -264,9 +261,9 @@ function switchToNewHost(gameId, newHostPeerId) {
 }
 
 function deleteGame(gameId) {
-  this.removeGameFromAvailableGames(gameId);
-  this.removeGameFromFullGames(gameId);
-  this.removeGame(gameId);
+  removeGameFromAvailableGames.call(this, gameId);
+  removeGameFromFullGames.call(this, gameId);
+  removeGame.call(this, gameId);
 }
 
 function removeGame(gameId) {
@@ -276,7 +273,7 @@ function removeGame(gameId) {
 
 function createNewGame(username, peerId) {
   console.log('creating new game');
-  var gameId = this.createNewGameId();
+  var gameId = createNewGameId.call(this);
   var gameData = {
     id: gameId,
     hostPeerId: peerId,
@@ -290,7 +287,7 @@ function createNewGame(username, peerId) {
   var newAvailableGameDataRef = this.gameRef.child(this.AVAILABLE_GAMES_LOCATION).child(gameId);
   newAvailableGameDataRef.set(gameId);
   this.joinedGame = gameId;
-  this.initializeServerPing();
+  initializeServerPing.call(this);
   return gameData;
 }
 
@@ -301,13 +298,13 @@ function createNewGameId() {
   return getRandomInRange(1, 10000000);
 }
 
-function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback) {
+function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, scope) {
   // if a game has already been joined on another thread, don't join another one
-  if (this.joinedGame && this.joinedGame >= 0) {
+  if (scope.joinedGame && scope.joinedGame >= 0) {
     return;
   }
-  this.joinedGame = gameId;
-  asyncGetGameData.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, this.doneGettingGameData);
+  scope.joinedGame = gameId;
+  asyncGetGameData.call(scope, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, scope.doneGettingGameData);
 };
 
 function asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameDataCallback) {
@@ -340,14 +337,14 @@ function doneGettingGameData(gameDataSnapshot, username, peerId, connectToUsersC
   // which represents users that have left the game. So trim out the 
   // undefined elements to see the actual array of current users
   if (usersArray.length == this.MAX_USERS_PER_GAME) {
-    this.setGameToFull(gameData.id);
+    setGameToFull.call(this, gameData.id);
   }
   var peerIdsArray = [];
   for (var j = 0; j < gameData.users.length; j++) {
     peerIdsArray.push(gameData.users[j].peerId);
   }
   connectToUsersCallback(peerIdsArray);
-  this.initializeServerPing();
+  initializeServerPing.call(this);
   joinedGameCallback(gameData, false);
 }
 
