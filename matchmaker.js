@@ -65,7 +65,7 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
           counter++;
           if (jsonObj.hasOwnProperty(key)) {
             gameId = jsonObj[key];
-            getGameLastUpdateTime.call(self, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTime, counter == numAvailableGames, self);
+            getGameLastUpdateTime.call(self, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTime.bind(self), counter == numAvailableGames, self);
           }
         }
       }
@@ -115,21 +115,21 @@ function removePeerFromGame(gameId, peerId) {
 
 
 
-function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback, scope) {
+function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback) {
   // if the game is still active join it
   if (lastUpdateTime) {
-    if (!isTimeoutTooLong.call(scope, lastUpdateTime)) {
-      joinExistingGame.call(scope, gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
+    if (!isTimeoutTooLong.call(this, lastUpdateTime)) {
+      joinExistingGame.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
       return;
     } else {
-      callAsyncCleanupInactiveGames.call(scope);
+      callAsyncCleanupInactiveGames.call(this);
     }
   }
   // if we got here, and this is the last game, that means there are no available games
   // so create one
   if (isTheLastGame) {
     console.log('no available games found, only inactive ones, so creating a new one...');
-    var gameData = createNewGame.call(scope, username, peerId);
+    var gameData = createNewGame.call(this, username, peerId);
     joinedGameCallback(gameData, true);
   }
 }
@@ -170,7 +170,7 @@ function callAsyncCleanupInactiveGames() {
 
 function setServerStatusAsStillActive() {
   console.log('pinging server');
-  gameRef.child(this.ALL_GAMES_LOCATION).child(this.joinedGame).child('lastUpdateTime').set((new Date()).getTime());
+  this.gameRef.child(this.ALL_GAMES_LOCATION).child(this.joinedGame).child('lastUpdateTime').set((new Date()).getTime());
 }
 
 function cleanupGames() {
@@ -298,13 +298,13 @@ function createNewGameId() {
   return getRandomInRange(1, 10000000);
 }
 
-function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, scope) {
+function joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback) {
   // if a game has already been joined on another thread, don't join another one
-  if (scope.joinedGame && scope.joinedGame >= 0) {
+  if (this.joinedGame && this.joinedGame >= 0) {
     return;
   }
-  scope.joinedGame = gameId;
-  asyncGetGameData.call(scope, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, scope.doneGettingGameData);
+  this.joinedGame = gameId;
+  asyncGetGameData.call(this, gameId, username, peerId, connectToUsersCallback.bind(this), joinedGameCallback.bind(this), doneGettingGameData.bind(this));
 };
 
 function asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameDataCallback) {
@@ -359,22 +359,22 @@ function removeGameFromAvailableGames(gameId) {
 }
 
 function addGameToFullGamesList(gameId) {
-  var gameDataRef = gameRef.child(this.FULL_GAMES_LOCATION).child(gameId);
+  var gameDataRef = this.gameRef.child(this.FULL_GAMES_LOCATION).child(gameId);
   gameDataRef.set(gameId);
 }
 
 function moveGameFromFullToAvailable(gameId) {
-  this.removeGameFromFullGames(gameId);
-  this.addGameToAvailableGamesList(gameId);
+  removeGameFromFullGames.call(this, gameId);
+  addGameToAvailableGamesList.call(this, gameId);
 }
 
 function removeGameFromFullGames(gameId) {
-  var gameDataRef = gameRef.child(this.FULL_GAMES_LOCATION).child(gameId);
+  var gameDataRef = this.gameRef.child(this.FULL_GAMES_LOCATION).child(gameId);
   gameDataRef.remove();
 }
 
 function addGameToAvailableGamesList(gameId) {
-  var gameDataRef = gameRef.child(this.AVAILABLE_GAMES_LOCATION).child(gameId);
+  var gameDataRef = this.gameRef.child(this.AVAILABLE_GAMES_LOCATION).child(gameId);
   gameDataRef.set(gameId);
 }
 

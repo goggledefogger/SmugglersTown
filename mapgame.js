@@ -26,6 +26,8 @@ function SmugglersTown(firebaseBaseUrl) {
   // bind public callback functions
   this.initialize = this.initialize.bind(this);
   this.frame = this.frame.bind(this);
+  this.onKeyDown = this.onKeyDown.bind(this);
+  this.onKeyUp = this.onKeyUp.bind(this);
 
   this.keepAliveParamName = 'keepalive';
   this.qs = new QueryString();
@@ -310,8 +312,38 @@ SmugglersTown.prototype.frame = function() {
   }
   render.call(this, this.dt);
   this.last = this.now;
-  requestAnimationFrame(frame);
+  requestAnimationFrame(this.frame);
 }
+
+// key events
+SmugglersTown.prototype.onKeyDown = function(evt) {
+  if (evt.keyCode == 39) {
+    this.rightDown = true;
+  } else if (evt.keyCode == 37) {
+    this.leftDown = true;
+  } else if (evt.keyCode == 38) {
+    this.upDown = true;
+  } else if (evt.keyCode == 40) {
+    this.downDown = true;
+  } else if (evt.keyCode == 17) {
+    this.ctrlDown = true;
+  }
+}
+
+SmugglersTown.prototype.onKeyUp = function(evt) {
+  if (evt.keyCode == 39) {
+    this.rightDown = false;
+  } else if (evt.keyCode == 37) {
+    this.leftDown = false;
+  } else if (evt.keyCode == 38) {
+    this.upDown = false;
+  } else if (evt.keyCode == 40) {
+    this.downDown = false;
+  } else if (evt.keyCode == 17) {
+    this.ctrlDown = false;
+  }
+}
+
 
 function initializeBoostBar() {
   $(function() {
@@ -322,28 +354,29 @@ function initializeBoostBar() {
 }
 
 function mapIsReady() {
-  this.matchmakerTown.joinOrCreateGame(this.username, this.peer.id, this.connectToAllNonHostUsers, this.gameJoined)
+  this.matchmakerTown.joinOrCreateGame(this.username, this.peer.id, connectToAllNonHostUsers.bind(this), gameJoined.bind(this))
 }
 
 function gameJoined(gameData, isNewGame) {
-  gameId = gameData.id;
+  this.gameId = gameData.id;
   if (isNewGame) {
     // we're hosting the game ourself
-    hostPeerId = peer.id;
+    this.hostPeerId = this.peer.id;
+
     // first user is always on team town
-    this.gameData.teamTownObject.users = [{
-      peerId: peer.id,
-      username: username
+    gameData.teamTownObject.users = [{
+      peerId: this.peer.id,
+      username: this.username
     }];
     $('#team-town-text').css('background-color', 'yellow');
     $('#team-town-text').css('color', 'black');
   } else {
     // someone else is already the host
-    hostPeerId = gameData.hostPeerId;
-    activateTeamCrushInUI();
+    this.hostPeerId = gameData.hostPeerId;
+    activateTeamCrushInUI.call(this);
   }
-  updateUsernamesInUI();
-  updateCarIcons();
+  updateUsernamesInUI.call(this);
+  updateCarIcons.call(this);
 }
 
 function updateUsernamesInUI() {
@@ -379,7 +412,7 @@ function activateTeamCrushInUI() {
 
 function connectToAllNonHostUsers(nonHostPeerIds) {
   for (var i = 0; i < nonHostPeerIds.length; i++) {
-    if (nonHostPeerIds[i] != peer.id) {
+    if (nonHostPeerIds[i] != this.peer.id) {
       connectToPeer.call(this, nonHostPeerIds[i]);
     }
   }
@@ -390,8 +423,8 @@ function bindKeyAndButtonEvents() {
     resizeMapToFit.call(this);
   });
 
-  $(document).keydown(onKeyDown);
-  $(document).keyup(onKeyUp);
+  $(document).keydown(this.onKeyDown);
+  $(document).keyup(this.onKeyUp);
   $('#connect-button').click(function(evt) {
     var peerId = $('#peer-id-textbox').val();
     console.log('peer id connecting: ' + peerId);
@@ -728,12 +761,13 @@ function moveCar() {
 }
 
 function connectToPeer(otherUserPeerId) {
+  var self = this;
   console.log('trying to connect to ' + otherUserPeerId);
   $('#peer-connection-status').text('trying to connect to ' + otherUserPeerId);
   var peerJsConnection = this.peer.connect(otherUserPeerId);
   peerJsConnection.on('open', function() {
     console.log('connection open');
-    connectedToPeer.call(this, peerJsConnection);
+    connectedToPeer.call(self, peerJsConnection);
   });
   peerJsConnection.on('error', function(err) {
     console.log("PEERJS ERROR: ");
@@ -803,16 +837,17 @@ function assignMyTeamInUI() {
 }
 
 function initializePeerConnection(peerJsConnection, otherUserPeerId) {
+  var self = this;
   if (!this.otherUsers[otherUserPeerId]) {
     this.otherUsers[otherUserPeerId] = {};
   }
   this.otherUsers[otherUserPeerId].peerJsConnection = peerJsConnection;
   this.otherUsers[otherUserPeerId].peerJsConnection.on('close', function() {
     console.log('closing connection');
-    otherUserDisconnected.call(this, otherUserPeerId);
+    otherUserDisconnected.call(self, otherUserPeerId);
   });
   this.otherUsers[otherUserPeerId].peerJsConnection.on('data', function(data) {
-    dataReceived.call(this, data);
+    dataReceived.call(self, data);
   });
 }
 
@@ -897,11 +932,11 @@ function dataReceived(data) {
   if (data.peerId) {
     // if we are the host, and the user who sent this data hasn't been given the initial game
     // state, then broadcast it to them
-    if (this.otherUsers[data.peerId] && !this.otherUsers[data.peerId].hasBeenInitialized && hostPeerId == peer.id) {
+    if (this.otherUsers[data.peerId] && !this.otherUsers[data.peerId].hasBeenInitialized && this.hostPeerId == this.peer.id) {
       this.otherUsers[data.peerId].hasBeenInitialized = true;
       // not sure if we should do this or not, but at least it resets the game
       // state to what we, the host, think it is
-      broadcastGameStateToAllPeers();
+      broadcastGameStateToAllPeers.call(this);
       // if not that, then we should just broadcast to the new guy like this:
       // broadcastGameState(data.peerId);
     }
@@ -917,119 +952,119 @@ function dataReceived(data) {
       // joining for the first time, and the way to tell that is to see if the
       // initial location has changed.  Once the user is already joined, if a
       // location change is initiated, that will use the 'new_location' event 
-      if (parseFloat(data.event.gameDataObject.initialLocation.lat) != parseFloat(gameDataObject.initialLocation.lat) ||
-        parseFloat(data.event.gameDataObject.initialLocation.lng) != parseFloat(gameDataObject.initialLocation.lng)) {
-        map.setCenter(new google.maps.LatLng(
+      if (parseFloat(data.event.gameDataObject.initialLocation.lat) != parseFloat(this.gameDataObject.initialLocation.lat) ||
+        parseFloat(data.event.gameDataObject.initialLocation.lng) != parseFloat(this.gameDataObject.initialLocation.lng)) {
+        this.map.setCenter(new google.maps.LatLng(
           data.event.gameDataObject.initialLocation.lat,
           data.event.gameDataObject.initialLocation.lng));
       }
-      gameDataObject = data.event.gameDataObject;
+      this.gameDataObject = data.event.gameDataObject;
       // need to make this call because we can be in a situation where the host
       // doesn't know our username yet, so we need to manually set it in our
       // own UI first.
-      updateUsername(peer.id, username);
-      updateUIWithNewGameState();
-      assignMyTeamBase();
-      updateCarIcons();
+      updateUsername.call(this, this.peer.id, this.username);
+      updateUIWithNewGameState.call(this);
+      assignMyTeamBase.call(this);
+      updateCarIcons.call(this);
     }
     if (data.event.name == 'new_location') {
       console.log('received event: new location ' + data.event.lat + ',' + data.event.lng);
-      if (data.event.originating_peer_id != peer.id) {
-        otherUserChangedLocation(data.event.lat, data.event.lng);
+      if (data.event.originating_peer_id != this.peer.id) {
+        otherUserChangedLocation.call(this, data.event.lat, data.event.lng);
         return;
       }
     }
     if (data.event.name == 'item_collected') {
       console.log('received event: item collected by ' + data.event.user_id_of_car_with_item);
-      if (data.event.user_id_of_car_with_item != peer.id) {
-        otherUserCollectedItem(data.event.user_id_of_car_with_item);
+      if (data.event.user_id_of_car_with_item != this.peer.id) {
+        otherUserCollectedItem.call(this, data.event.user_id_of_car_with_item);
       }
     }
     if (data.event.name == 'new_item') {
       console.log('received event: new item at ' +
         data.event.location.lat + ',' + data.event.location.lng +
         ' with id ' + data.event.id);
-      gameDataObject.peerIdOfCarWithItem = null;
+      this.gameDataObject.peerIdOfCarWithItem = null;
       // Only update if someone else caused the new item placement.
       // if this user did it, it was already placed
-      if (data.event.host_user && data.event.host_user != peer.id) {
+      if (data.event.host_user && data.event.host_user != this.peer.id) {
         var itemLocation = new google.maps.LatLng(data.event.location.lat, data.event.location.lng);
-        putNewItemOnMap(itemLocation, data.event.id);
+        putNewItemOnMap.call(this, itemLocation, data.event.id);
       }
 
     }
     if (data.event.name == 'item_returned') {
       console.log('received event: item returned by user ' + data.event.user_id_of_car_that_returned_item + ' which gives them ' + data.event.now_num_items);
-      gameDataObject.peerIdOfCarWithItem = null;
-      if (data.event.user_id_of_car_that_returned_item != peer.id) {
-        teamTownBaseMapObject.marker.setIcon(teamTownBaseTransparentIcon);
-        teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
-        otherUserReturnedItem(data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
+      this.gameDataObject.peerIdOfCarWithItem = null;
+      if (data.event.user_id_of_car_that_returned_item != this.peer.id) {
+        this.teamTownBaseMapObject.marker.setIcon(this.teamTownBaseTransparentIcon);
+        this.teamCrushBaseMapObject.marker.setIcon(this.teamCrushBaseTransparentIcon);
+        otherUserReturnedItem.call(this, data.event.user_id_of_car_that_returned_item, data.event.now_num_items);
       }
     }
     if (data.event.name == 'item_transferred') {
       console.log('received event: item ' + data.event.id + ' transferred by user ' + data.event.fromUserPeerId + ' to user ' + data.event.toUserPeerId);
-      gameDataObject.peerIdOfCarWithItem = data.event.toUserPeerId;
-      if (data.event.toUserPeerId == peer.id) {
+      this.gameDataObject.peerIdOfCarWithItem = data.event.toUserPeerId;
+      if (data.event.toUserPeerId == this.peer.id) {
         // the item was transferred to this user
-        gameDataObject.itemObject = {
+        this.gameDataObject.itemObject = {
           id: data.event.id,
           location: null
         };
-        timeOfLastTransfer = (new Date()).getTime();
-        console.log('someone transferred at ' + timeOfLastTransfer);
-        userCollidedWithItem(gameDataObject.itemObject);
+        this.timeOfLastTransfer = (new Date()).getTime();
+        console.log('someone transferred at ' + this.timeOfLastTransfer);
+        userCollidedWithItem.call(this, this.gameDataObject.itemObject);
       } else {
         // set the arrow to point to the new user who has the item
-        destination = this.otherUsers[data.event.toUserPeerId].car.location;
+        this.destination = this.otherUsers[data.event.toUserPeerId].car.location;
       }
     }
   }
 
   // if the user sent a username that we haven't seen yet, set it
   if (data.peerId && data.username && !this.otherUsers[data.peerId].username) {
-    updateUsername(data.peerId, data.username);
+    updateUsername.call(this, data.peerId, data.username);
   }
 
   if (data.peerId && data.carLatLng && this.otherUsers[data.peerId]) {
-    moveOtherCar(this.otherUsers[data.peerId], new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
+    moveOtherCar.call(this, this.otherUsers[data.peerId], new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng));
   }
 }
 
 function assignMyTeamBase() {
-  if (userIsOnTownTeam(peer.id)) {
-    myTeamBaseMapObject = teamTownBaseMapObject;
+  if (userIsOnTownTeam.call(this, this.peer.id)) {
+    this.myTeamBaseMapObject = this.teamTownBaseMapObject;
   } else {
-    myTeamBaseMapObject = teamCrushBaseMapObject;
+    this.myTeamBaseMapObject = this.teamCrushBaseMapObject;
   }
 }
 
 function updateUsername(peerId, username) {
-  for (var i = 0; i < gameDataObject.teamTownObject.users.length; i++) {
-    if (gameDataObject.teamTownObject.users[i].peerId == peerId) {
-      gameDataObject.teamTownObject.users[i].username = username;
+  for (var i = 0; i < this.gameDataObject.teamTownObject.users.length; i++) {
+    if (this.gameDataObject.teamTownObject.users[i].peerId == peerId) {
+      this.gameDataObject.teamTownObject.users[i].username = username;
     }
   }
-  for (var j = 0; j < gameDataObject.teamCrushObject.users.length; j++) {
-    if (gameDataObject.teamCrushObject.users[j].peerId == peerId) {
-      gameDataObject.teamCrushObject.users[j].username = username;
+  for (var j = 0; j < this.gameDataObject.teamCrushObject.users.length; j++) {
+    if (this.gameDataObject.teamCrushObject.users[j].peerId == peerId) {
+      this.gameDataObject.teamCrushObject.users[j].username = username;
     }
   }
-  updateUsernamesInUI();
+  updateUsernamesInUI.call(this);
 }
 
 function updateUIWithNewGameState() {
   // recenter the map
-  console.log('new location received: ' + gameDataObject.initialLocation);
-  mapCenter = new google.maps.LatLng(gameDataObject.initialLocation.lat, gameDataObject.initialLocation.lng);
-  updateBaseLocationsInUI();
-  updateUsernamesInUI();
+  console.log('new location received: ' + this.gameDataObject.initialLocation);
+  this.mapCenter = new google.maps.LatLng(this.gameDataObject.initialLocation.lat, this.gameDataObject.initialLocation.lng);
+  updateBaseLocationsInUI.call(this);
+  updateUsernamesInUI.call(this);
   // if someone has the item
-  if (gameDataObject.peerIdOfCarWithItem) {
-    itemMapObject.marker.setMap(null);
+  if (this.gameDataObject.peerIdOfCarWithItem) {
+    this.itemMapObject.marker.setMap(null);
     // if I have the item, make the destination my team's base
-    if (gameDataObject.peerIdOfCarWithItem == peer.id) {
-      setDestination(myTeamBaseMapObject.location, 'arrow_blue.png');
+    if (this.gameDataObject.peerIdOfCarWithItem == this.peer.id) {
+      setDestination.call(this, this.myTeamBaseMapObject.location, 'arrow_blue.png');
     } else {
       // another user has the item, but the setDestination call
       // will be taken care of when the user sends their location data
@@ -1037,33 +1072,33 @@ function updateUIWithNewGameState() {
   } else {
     // if nobody has the item, put it on the map in the right place,
     // and set the new item location as the destination
-    if (gameDataObject.itemObject && gameDataObject.itemObject.location) {
-      moveItemOnMap(gameDataObject.itemObject.location.lat, gameDataObject.itemObject.location.lng);
+    if (this.gameDataObject.itemObject && this.gameDataObject.itemObject.location) {
+      moveItemOnMap.call(this, this.gameDataObject.itemObject.location.lat, this.gameDataObject.itemObject.location.lng);
     }
-    setDestination(itemMapObject.location, 'arrow.png');
+    setDestination.call(this, this.itemMapObject.location, 'arrow.png');
   }
-  updateScoresInUI(gameDataObject.teamTownObject.numItemsReturned, gameDataObject.teamCrushObject.numItemsReturned);
-  assignMyTeamInUI();
+  updateScoresInUI.call(this, this.gameDataObject.teamTownObject.numItemsReturned, this.gameDataObject.teamCrushObject.numItemsReturned);
+  assignMyTeamInUI.call(this);
 }
 
 function updateBaseLocationsInUI() {
-  createTeamTownBaseMapObject(
-    gameDataObject.teamTownObject.baseObject.location.lat,
-    gameDataObject.teamTownObject.baseObject.location.lng);
-  createTeamCrushBaseMapObject(
-    gameDataObject.teamCrushObject.baseObject.location.lat,
-    gameDataObject.teamCrushObject.baseObject.location.lng);
+  createTeamTownBaseMapObject.call(this,
+    this.gameDataObject.teamTownObject.baseObject.location.lat,
+    this.gameDataObject.teamTownObject.baseObject.location.lng);
+  createTeamCrushBaseMapObject.call(this,
+    this.gameDataObject.teamCrushObject.baseObject.location.lat,
+    this.gameDataObject.teamCrushObject.baseObject.location.lng);
 }
 
 function updateCarIcons() {
-  updateTeamUsersCarIcons(gameDataObject.teamTownObject.users, teamTownOtherCarIcon);
-  updateTeamUsersCarIcons(gameDataObject.teamCrushObject.users, teamCrushOtherCarIcon);
-  updateMyCarIcon();
+  updateTeamUsersCarIcons.call(this, this.gameDataObject.teamTownObject.users, this.teamTownOtherCarIcon);
+  updateTeamUsersCarIcons.call(this, this.gameDataObject.teamCrushObject.users, this.teamCrushOtherCarIcon);
+  updateMyCarIcon.call(this);
 }
 
 function updateMyCarIcon() {
   var userCarImgSrc = 'images/crush_car.png';
-  if (userIsOnTownTeam(peer.id)) {
+  if (userIsOnTownTeam.call(this, this.peer.id)) {
     userCarImgSrc = 'images/car.png';
   }
   $('#car-img').attr('src', userCarImgSrc);
@@ -1076,9 +1111,9 @@ function updateTeamUsersCarIcons(teamUsers, teamCarIcon) {
       this.otherUsers[teamUsers[i].peerId].car.marker.setMap(null);
     }
 
-    if (teamUsers[i].peerId != peer.id) {
+    if (teamUsers[i].peerId != this.peer.id) {
       this.otherUsers[teamUsers[i].peerId].car.marker = new google.maps.Marker({
-        map: map,
+        map: this.map,
         title: teamUsers[i].peerId,
         icon: teamCarIcon
       });
@@ -1096,16 +1131,16 @@ function updateScoresInUI(teamTownNumItemsReturned, teamCrushNumItemsReturned) {
 
 function moveItemOnMap(lat, lng) {
   console.log('moving item to new location: ' + lat + ',' + lng);
-  gameDataObject.itemObject.location.lat = lat;
-  gameDataObject.itemObject.location.lng = lng;
-  itemMapObject.location = new google.maps.LatLng(lat, lng);
-  itemMapObject.marker.setPosition(itemMapObject.location);
+  this.gameDataObject.itemObject.location.lat = lat;
+  this.gameDataObject.itemObject.location.lng = lng;
+  this.itemMapObject.location = new google.maps.LatLng(lat, lng);
+  this.itemMapObject.marker.setPosition(this.itemMapObject.location);
 }
 
 function otherUserReturnedItem(otherUserPeerId, nowNumItemsForUser) {
-  gameDataObject.peerIdOfCarWithItem = null;
-  incrementItemCount(userIsOnTownTeam(otherUserPeerId))
-  fadeArrowToImage('arrow.png');
+  this.gameDataObject.peerIdOfCarWithItem = null;
+  incrementItemCount.call(this, userIsOnTownTeam.call(this, otherUserPeerId))
+  fadeArrowToImage.call(this, 'arrow.png');
 }
 
 function moveOtherCar(otherUserObject, newLocation) {
@@ -1115,37 +1150,37 @@ function moveOtherCar(otherUserObject, newLocation) {
 
   otherUserObject.car.location = newLocation;
   if (!otherUserObject.car.marker) {
-    updateCarIcons();
+    updateCarIcons.call(this);
   }
   // if the other car has an item, update the destination
   // to be it
-  if (gameDataObject.peerIdOfCarWithItem == otherUserObject.peerId) {
+  if (this.gameDataObject.peerIdOfCarWithItem == otherUserObject.peerId) {
     var arrowImg = 'arrow_red.png';
-    if (userIsOnMyTeam(otherUserObject.peerId)) {
+    if (userIsOnMyTeam.call(this, otherUserObject.peerId)) {
       arrowImg = 'arrow_green_blue.png';
     }
-    setDestination(newLocation, arrowImg);
+    setDestination.call(this, newLocation, arrowImg);
   }
-  transferItemIfCarsHaveCollided(otherUserObject.car.location, otherUserObject.peerId);
+  transferItemIfCarsHaveCollided.call(this, otherUserObject.car.location, otherUserObject.peerId);
   otherUserObject.car.marker.setPosition(otherUserObject.car.location);
 }
 
 function userIsOnMyTeam(otherUserPeerId) {
   var myTeam = null;
   var otherUserTeam = null;
-  for (var i = 0; i < gameDataObject.teamTownObject.users.length; i++) {
-    if (gameDataObject.teamTownObject.users[i].peerId == peer.id) {
+  for (var i = 0; i < this.gameDataObject.teamTownObject.users.length; i++) {
+    if (this.gameDataObject.teamTownObject.users[i].peerId == this.peer.id) {
       myTeam = 'town';
     }
-    if (gameDataObject.teamTownObject.users[i].peerId == otherUserPeerId) {
+    if (this.gameDataObject.teamTownObject.users[i].peerId == otherUserPeerId) {
       otherUserTeam = 'town';
     }
   }
-  for (var i = 0; i < gameDataObject.teamCrushObject.users.length; i++) {
-    if (gameDataObject.teamCrushObject.users[i].peerId == peer.id) {
+  for (var i = 0; i < this.gameDataObject.teamCrushObject.users.length; i++) {
+    if (this.gameDataObject.teamCrushObject.users[i].peerId == this.peer.id) {
       myTeam = 'crush';
     }
-    if (gameDataObject.teamCrushObject.users[i].peerId == otherUserPeerId) {
+    if (this.gameDataObject.teamCrushObject.users[i].peerId == otherUserPeerId) {
       otherUserTeam = 'crush';
     }
   }
@@ -1156,67 +1191,67 @@ function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
   // if we don't know the other car's location, or if this isn't the user with
   //  the item, then ignore it. We'll only transfer an item from the perspected
   //  of the user with the item
-  if (!otherCarLocation || !collectedItem) {
+  if (!otherCarLocation || !this.collectedItem) {
     return;
   }
-  if (timeOfLastTransfer) {
+  if (this.timeOfLastTransfer) {
     var timeSinceLastTransfer = ((new Date()).getTime()) - timeOfLastTransfer;
     // if not enough time has passed since the last transfer, return
-    if (timeSinceLastTransfer < timeDelayBetweenTransfers) {
+    if (timeSinceLastTransfer < this.timeDelayBetweenTransfers) {
       return;
     } else {
       // optimization: reset this so we don't waste time calculating in the future
-      timeOfLastTransfer = null;
+      this.timeOfLastTransfer = null;
     }
   }
 
-  var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, otherCarLocation);
+  var distance = google.maps.geometry.spherical.computeDistanceBetween(this.mapCenter, otherCarLocation);
   // if this user (that has the item) is close enough to call it a
   // collision, transfer it to the other user
   if (distance < 20) {
-    transferItem(collectedItem.id, peer.id, otherUserPeerId);
+    transferItem.call(this, this.collectedItem.id, this.peer.id, otherUserPeerId);
   }
 }
 
 function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
   console.log('item ' + itemObjectId + ' transferred from ' + fromUserPeerId + ' to ' + toUserPeerId);
-  timeOfLastTransfer = (new Date()).getTime();
-  broadcastTransferOfItem(itemObjectId, fromUserPeerId, toUserPeerId, timeOfLastTransfer);
-  collectedItem = null;
-  gameDataObject.peerIdOfCarWithItem = toUserPeerId;
+  this.timeOfLastTransfer = (new Date()).getTime();
+  broadcastTransferOfItem.call(this, itemObjectId, fromUserPeerId, toUserPeerId, this.timeOfLastTransfer);
+  this.collectedItem = null;
+  this.gameDataObject.peerIdOfCarWithItem = toUserPeerId;
   var arrowImg = 'arrow_red.png';
-  if (userIsOnMyTeam(toUserPeerId)) {
+  if (userIsOnMyTeam.call(this, toUserPeerId)) {
     arrowImg = 'arrow_green_blue.png';
   }
-  setDestination(this.otherUsers[toUserPeerId].car.location, arrowImg);
+  setDestination.call(this, this.otherUsers[toUserPeerId].car.location, arrowImg);
 }
 
 function otherUserCollectedItem(userId) {
   console.log('other user collected item');
-  gameDataObject.peerIdOfCarWithItem = userId;
-  itemMapObject.marker.setMap(null);
+  this.gameDataObject.peerIdOfCarWithItem = userId;
+  this.itemMapObject.marker.setMap(null);
   var arrowImg = 'arrow_red.png';
-  if (userIsOnMyTeam(userId)) {
+  if (userIsOnMyTeam.call(this, userId)) {
     arrowImg = 'arrow_green_blue.png';
   }
-  fadeArrowToImage(arrowImg);
-  teamTownBaseMapObject.marker.setIcon(teamTownBaseIcon);
-  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseIcon);
+  fadeArrowToImage.call(this, arrowImg);
+  this.teamTownBaseMapObject.marker.setIcon(this.teamTownBaseIcon);
+  this.teamCrushBaseMapObject.marker.setIcon(this.teamCrushBaseIcon);
 
 }
 
 function userReturnedItemToBase() {
   console.log('user returned item to base');
-  gameDataObject.peerIdOfCarWithItem = null;
-  fadeArrowToImage('arrow.png');
-  incrementItemCount(userIsOnTownTeam(peer.id));
-  collectedItem = null;
-  teamTownBaseMapObject.marker.setIcon(teamTownBaseTransparentIcon);
-  teamCrushBaseMapObject.marker.setIcon(teamCrushBaseTransparentIcon);
+  this.gameDataObject.peerIdOfCarWithItem = null;
+  fadeArrowToImage.call(this, 'arrow.png');
+  incrementItemCount.call(this, userIsOnTownTeam.call(this, this.peer.id));
+  this.collectedItem = null;
+  this.teamTownBaseMapObject.marker.setIcon(this.teamTownBaseTransparentIcon);
+  this.teamCrushBaseMapObject.marker.setIcon(this.teamCrushBaseTransparentIcon);
 }
 
 function userIsOnTownTeam(peerId) {
-  for (var i = gameDataObject.teamTownObject.users.length - 1; i >= 0; i--) {
+  for (var i = this.gameDataObject.teamTownObject.users.length - 1; i >= 0; i--) {
     if (this.gameDataObject.teamTownObject.users[i].peerId == peerId) {
       return true;
     }
@@ -1309,27 +1344,27 @@ function update(step) {
 }
 
 function shouldKeepAlive() {
-  return qs.value(keepAliveParamName) == 'true';
+  return this.qs.value(this.keepAliveParamName) == 'true';
 }
 
 function cleanupAnyDroppedConnections() {
-  if (shouldKeepAlive()) {
+  if (shouldKeepAlive.call(this)) {
     return;
   }
 
   var timeNow = (new Date()).getTime();
-  for (var user in otherUsers) {
+  for (var user in this.otherUsers) {
     // if it's been longer than the timeout since we've heard from
     // this user, remove them from the game
-    if (otherUsers[user].lastUpdateTime && (timeNow - otherUsers[user].lastUpdateTime > ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS)) {
-      closePeerJsConnection(user);
+    if (this.otherUsers[user].lastUpdateTime && (timeNow - this.otherUsers[user].lastUpdateTime > this.ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS)) {
+      closePeerJsConnection.call(this, user);
     }
   }
 }
 
 function closePeerJsConnection(otherUserPeerId) {
-  if (otherUsers[otherUserPeerId] && otherUsers[otherUserPeerId].peerJsConnection) {
-    otherUsers[otherUserPeerId].peerJsConnection.close();
+  if (this.otherUsers[otherUserPeerId] && this.otherUsers[otherUserPeerId].peerJsConnection) {
+    this.otherUsers[otherUserPeerId].peerJsConnection.close();
   }
 }
 
@@ -1362,7 +1397,7 @@ function broadcastGameState(otherUserPeerId) {
   var updateGameStateEventObject = {
     event: {
       name: 'update_game_state',
-      gameDataObject: this.gameData
+      gameDataObject: this.gameDataObject
     }
   };
   this.otherUsers[otherUserPeerId].peerJsConnection.send(updateGameStateEventObject);
@@ -1401,7 +1436,7 @@ function broadcastItemReturned() {
       event: {
         name: 'item_returned',
         user_id_of_car_that_returned_item: peer.id,
-        now_num_items: this.gameData.teamTownObject.numItemsReturned,
+        now_num_items: this.gameDataObject.teamTownObject.numItemsReturned,
       }
     });
   }
@@ -1413,12 +1448,12 @@ function broadcastItemCollected(itemId) {
     if (!this.otherUsers[user].peerJsConnection || !this.otherUsers[user].peerJsConnection.open) {
       return;
     }
-    this.gameData.peerIdOfCarWithItem = peer.id;
+    this.gameDataObject.peerIdOfCarWithItem = peer.id;
     this.otherUsers[user].peerJsConnection.send({
       event: {
         name: 'item_collected',
         id: itemId,
-        user_id_of_car_with_item: this.gameData.peerIdOfCarWithItem
+        user_id_of_car_with_item: this.gameDataObject.peerIdOfCarWithItem
       }
     });
   }
@@ -1484,15 +1519,15 @@ function getCollisionMarker() {
 }
 
 function setGameToNewLocation(lat, lng) {
-  this.gameData.initialLocation = {
+  this.gameDataObject.initialLocation = {
     lat: lat,
     lng: lng
   };
-  createTeamTownBase(lat, lng);
-  createTeamCrushBase((parseFloat(lat) + 0.006).toString(), (parseFloat(lng) + 0.008).toString());
-  assignMyTeamBase();
-  mapCenter = new google.maps.LatLng(lat, lng);
-  map.setCenter(mapCenter);
+  createTeamTownBase.call(this, lat, lng);
+  createTeamCrushBase.call(this, (parseFloat(lat) + 0.006).toString(), (parseFloat(lng) + 0.008).toString());
+  assignMyTeamBase.call(this);
+  this.mapCenter = new google.maps.LatLng(lat, lng);
+  this.map.setCenter(this.mapCenter);
 }
 
 function getAngle(vx, vy) {
@@ -1511,34 +1546,6 @@ function computeBearingAngle(lat1, lon1, lat2, lon2) {
   return angleInRadians.toDeg();
 }
 
-// key events
-function onKeyDown(evt) {
-  if (evt.keyCode == 39) {
-    rightDown = true;
-  } else if (evt.keyCode == 37) {
-    leftDown = true;
-  } else if (evt.keyCode == 38) {
-    upDown = true;
-  } else if (evt.keyCode == 40) {
-    downDown = true;
-  } else if (evt.keyCode == 17) {
-    ctrlDown = true;
-  }
-}
-
-function onKeyUp(evt) {
-  if (evt.keyCode == 39) {
-    rightDown = false;
-  } else if (evt.keyCode == 37) {
-    leftDown = false;
-  } else if (evt.keyCode == 38) {
-    upDown = false;
-  } else if (evt.keyCode == 40) {
-    downDown = false;
-  } else if (evt.keyCode == 17) {
-    ctrlDown = false;
-  }
-}
 
 // game loop helpers
 function timestamp() {
@@ -1547,19 +1554,21 @@ function timestamp() {
 
 // don't think we'll need to go to the user's location, but might be useful
 function tryFindingLocation() {
+  var self = this;
+
   // Try HTML5 geolocation
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(function(position) {
       var pos = new google.maps.LatLng(position.coords.latitude,
         position.coords.longitude);
-      map.setCenter(pos);
-      mapCenter = pos;
+      self.map.setCenter(pos);
+      self.mapCenter = pos;
     }, function() {
-      handleNoGeolocation(true);
+      handleNoGeolocation.call(self, true);
     });
   } else {
     // Browser doesn't support Geolocation
-    handleNoGeolocation(false);
+    handleNoGeolocation.call(self, false);
   }
 }
 
@@ -1589,7 +1598,7 @@ function showContextMenu(e) {
 // hack to allow for browser context menu on right-click
 function mouseUp(e) {
   if (e.button == 2) { // right-click
-    this.showContextMenu(e);
+    showContextMenu.call(this, e);
   }
 }
 
