@@ -78,7 +78,7 @@ MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, connec
 /**
  *  remove a peer from the session
  */
-function removePeerFromSession(sessionId, peerId) {
+MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
   var self = this;
 
   var sessionDataRef = this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId);
@@ -87,8 +87,8 @@ function removePeerFromSession(sessionId, peerId) {
       // something's wrong, probably the Firebase data was deleted
       return;
     }
-    if (data.val().hostPeerId == this.peerId) {
-      findNewHostPeerId.call(this, sessionId, peerId, switchToNewHost);
+    if (data.val().hostPeerId == peerId) {
+      findNewHostPeerId.call(self, sessionId, peerId, switchToNewHost);
     }
 
     // Firebase weirdness: the users array can still have undefined elements
@@ -97,21 +97,28 @@ function removePeerFromSession(sessionId, peerId) {
     var numUsersInSession = data.child('users').val().clean(undefined).length;
     data.child('users').forEach(function(childSnapshot) {
       // if we've found the ref that represents the given peer, remove it
-      if (childSnapshot.val() && childSnapshot.val().peerId == this.peerId) {
+      if (childSnapshot.val() && childSnapshot.val().peerId == peerId) {
         childSnapshot.ref().remove();
         // if this user was the last one in the session, now there are 0, 
         // so delete the session
         if (numUsersInSession == 1) {
-          deleteSession.call(this, sessionId);
+          deleteSession.call(self, sessionId);
         } else {
           // if it was full, now it has one open slot, set it to available
-          if (numUsersInSession == this.MAX_USERS_PER_SESSION) {
-            moveSessionFromFullToAvailable.call(this, sessionId);
+          if (numUsersInSession == self.MAX_USERS_PER_SESSION) {
+            moveSessionFromFullToAvailable.call(self, sessionId);
           }
         }
       }
     });
   });
+}
+
+MatchmakerTown.prototype.switchToNewHost = function(sessionId, newHostPeerId) {
+  if (!newHostPeerId) {
+    return;
+  }
+  this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId).child('hostPeerId').set(newHostPeerId);
 }
 
 function createNewSessionData(username, peerId) {
@@ -266,13 +273,6 @@ function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
   });
 }
 
-function switchToNewHost(sessionId, newHostPeerId) {
-  if (!newHostPeerId) {
-    return;
-  }
-  this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId).child('hostPeerId').set(newHostPeerId);
-}
-
 function deleteSession(sessionId) {
   removeSessionFromAvailableSessions.call(this, sessionId);
   removeSessionFromFullSessions.call(this, sessionId);
@@ -351,8 +351,8 @@ function doneGettingSessionData(sessionDataSnapshot, username, peerId, connectTo
 }
 
 function setSessionToFull(sessionId) {
-  this.removeSessionFromAvailableSessions(sessionId);
-  this.addSessionToFullSessionsList(sessionId);
+  removeSessionFromAvailableSessions.call(this, sessionId);
+  addSessionToFullSessionsList.call(this, sessionId);
 }
 
 function removeSessionFromAvailableSessions(sessionId) {

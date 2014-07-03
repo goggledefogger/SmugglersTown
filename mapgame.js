@@ -443,7 +443,7 @@ function bindKeyAndButtonEvents() {
 
 function disconnectFromGame() {
   if (this.peer && this.peer.id && this.gameId) {
-    matchmakerTown.removePeerFromSession(this.gameId, this.peer.id);
+    this.matchmakerTown.removePeerFromSession(this.gameId, this.peer.id);
   }
 }
 
@@ -864,12 +864,12 @@ function otherUserDisconnected(otherUserPeerId) {
   removeUserFromUI.call(this, otherUserPeerId);
 
   // remove this user from the game in Firebase:
-  matchmakerTown.removePeerFromSession(gameId, otherUserPeerId);
+  this.matchmakerTown.removePeerFromSession(this.gameId, otherUserPeerId);
 
   if (this.hostPeerId == otherUserPeerId) {
     // if that user was the host, set us as the new host
     this.hostPeerId = this.peer.id;
-    switchToNewHost.call(this, this.gameId, this.peer.id);
+    this.matchmakerTown.switchToNewHost(this.gameId, this.peer.id);
   }
 
   // if the user who disconnected currently had an item,
