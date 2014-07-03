@@ -23,6 +23,7 @@ module.exports = SmugglersTown;
  */
 function SmugglersTown(firebaseBaseUrl) {
 
+  // bind public callback functions
   this.initialize = this.initialize.bind(this);
 
   this.keepAliveParamName = 'keepalive';
@@ -296,7 +297,7 @@ SmugglersTown.prototype.initialize = function() {
   initializeBoostBar.call(this);
 
   // start the game loop
-  requestAnimationFrame.call(this, frame);
+  requestAnimationFrame(frame);
 }
 
 
@@ -309,7 +310,7 @@ function initializeBoostBar() {
 }
 
 function mapIsReady() {
-  matchmakerTown.joinOrCreateGame(username, peer.id, connectToAllNonHostUsers, gameJoined)
+  this.matchmakerTown.joinOrCreateGame(this.username, this.peer.id, this.connectToAllNonHostUsers, this.gameJoined)
 }
 
 function gameJoined(gameData, isNewGame) {
@@ -471,11 +472,11 @@ function loadMapData(mapIsReadyCallback) {
     };
 
     createTeamTownBase.call(self, self.mapData.map.teamTownBaseLatLng.lat, self.mapData.map.teamTownBaseLatLng.lng);
-    createTeamCrushBase.call(this, self.mapData.map.teamCrushBaseLatLng.lat, self.mapData.map.teamCrushBaseLatLng.lng);
+    createTeamCrushBase.call(self, self.mapData.map.teamCrushBaseLatLng.lat, self.mapData.map.teamCrushBaseLatLng.lng);
     self.myTeamBaseMapObject = self.teamTownBaseMapObject;
 
-    randomlyPutItems.call(this);
-    mapIsReadyCallback();
+    randomlyPutItems.call(self);
+    mapIsReadyCallback.call(self);
   });
 }
 

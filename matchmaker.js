@@ -46,15 +46,15 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
   callAsyncCleanupInactiveGames.call(this);
   console.log('trying to join game');
   initializeServerHelperWorker.call(this);
-  var availableGamesDataRef = gameRef.child(this.AVAILABLE_GAMES_LOCATION);
+  var availableGamesDataRef = this.gameRef.child(this.AVAILABLE_GAMES_LOCATION);
   availableGamesDataRef.once('value', function(data) {
     // only join a game if one isn't joined already
-    if (this.joinedGame == null) {
-      this.joinedGame = -1;
+    if (self.joinedGame == null) {
+      self.joinedGame = -1;
       if (data.val() === null) {
         // there are no available games, so create one
-        var gameData = createNewGame.call(this, username, peerId);
-        joinedGameCallback.call(this, gameData, true);
+        var gameData = createNewGame.call(self, username, peerId);
+        joinedGameCallback.call(self, gameData, true);
       } else {
         var jsonObj = data.val();
         var gameId;
@@ -73,7 +73,7 @@ MatchmakerTown.prototype.joinOrCreateGame = function(username, peerId, connectTo
           counter++;
           if (jsonObj.hasOwnProperty(key)) {
             gameId = jsonObj[key];
-            getGameLastUpdateTime.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTime, counter == numAvailableGames);
+            getGameLastUpdateTime.call(self, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, self.doneGettingUpdateTime, counter == numAvailableGames);
           }
         }
       }
@@ -126,24 +126,24 @@ function removePeerFromGame(gameId, peerId) {
 function doneGettingUpdateTime(lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback) {
   // if the game is still active join it
   if (lastUpdateTime) {
-    if (!this.isTimeoutTooLong(lastUpdateTime)) {
-      this.joinExistingGame(gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
+    if (!isTimeoutTooLong.call(this, lastUpdateTime)) {
+      joinExistingGame.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback);
       return;
     } else {
-      this.callAsyncCleanupInactiveGames();
+      callAsyncCleanupInactiveGames.call(this);
     }
   }
   // if we got here, and this is the last game, that means there are no available games
   // so create one
   if (isTheLastGame) {
     console.log('no available games found, only inactive ones, so creating a new one...');
-    var gameData = this.createNewGame(username, peerId);
-    joinedGameCallback(gameData, true);
+    var gameData = createNewGame.call(this, username, peerId);
+    joinedGameCallback.call(this, gameData, true);
   }
 }
 
 function getGameLastUpdateTime(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingUpdateTimeCallback, isTheLastGame) {
-  gameRef.child(this.ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
+  this.gameRef.child(this.ALL_GAMES_LOCATION).child(gameId).once('value', function(data) {
     if (data.val() && data.val().lastUpdateTime) {
       console.log('found update time: ' + data.val().lastUpdateTime)
       doneGettingUpdateTimeCallback(data.val().lastUpdateTime, gameId, isTheLastGame, username, peerId, connectToUsersCallback, joinedGameCallback);
@@ -307,7 +307,7 @@ function joinExistingGame(gameId, username, peerId, connectToUsersCallback, join
     return;
   }
   this.joinedGame = gameId;
-  this.asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, this.doneGettingGameData);
+  asyncGetGameData.call(this, gameId, username, peerId, connectToUsersCallback, joinedGameCallback, this.doneGettingGameData);
 };
 
 function asyncGetGameData(gameId, username, peerId, connectToUsersCallback, joinedGameCallback, doneGettingGameDataCallback) {
