@@ -23,9 +23,7 @@ module.exports = SmugglersTown;
  */
 function SmugglersTown(firebaseBaseUrl) {
 
-
-  google.maps.event.addDomListener(window, 'load', this.initialize);
-
+  this.initialize = this.initialize.bind(this);
 
   this.keepAliveParamName = 'keepalive';
   this.qs = new QueryString();
@@ -261,8 +259,11 @@ function SmugglersTown(firebaseBaseUrl) {
     $('#peer-id').text(id);
     $('#peer-connection-status').text('waiting for a smuggler to battle...');
   });
-  this.peer.on('connection', this.connectedToPeer);
+  this.peer.on('connection', connectedToPeer.bind(this));
   this.ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 30 * 1000;
+
+
+  google.maps.event.addDomListener(window, 'load', this.initialize);
 }
 
 /**
