@@ -165,7 +165,7 @@ function initializeServerPing() {
 function initializeServerHelperWorker(windowObject) {
   if (typeof(windowObject.Worker) !== "undefined") {
     this.myWorker = new Worker("asyncmessager.js");
-    this.myWorker.addEventListener('message', this.processMessageEvent, false);
+    this.myWorker.addEventListener('message', processMessageEvent.bind(this), false);
   } else {
     console.log("Sorry, your browser does not support Web Workers...");
   }
@@ -207,7 +207,7 @@ function cleanupSessions() {
       }
 
       if (shouldDeleteSession) {
-        deleteSession(self, childSnapshot.name());
+        deleteSession.call(self, childSnapshot.name());
         childSnapshot.ref().remove();
 
       }
@@ -227,7 +227,7 @@ function isTimeoutTooLong(lastUpdateTime) {
 function processMessageEvent(event) {
   switch (event.data) {
     case 'cleanup_inactive_sessions':
-      cleanupSessions.self();
+      cleanupSessions.call(this);
       break;
     default:
       break;
