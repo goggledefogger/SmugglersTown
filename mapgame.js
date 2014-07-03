@@ -25,6 +25,7 @@ function SmugglersTown(firebaseBaseUrl) {
 
   // bind public callback functions
   this.initialize = this.initialize.bind(this);
+  this.frame = this.frame.bind(this);
 
   this.keepAliveParamName = 'keepalive';
   this.qs = new QueryString();
@@ -297,9 +298,20 @@ SmugglersTown.prototype.initialize = function() {
   initializeBoostBar.call(this);
 
   // start the game loop
-  requestAnimationFrame(frame);
+  requestAnimationFrame(this.frame);
 }
 
+SmugglersTown.prototype.frame = function() {
+  this.now = timestamp.call(this);
+  this.dt = this.dt + Math.min(1, (this.now - this.last) / 1000);
+  while (this.dt > this.step) {
+    this.dt = this.dt - this.step;
+    update.call(this, this.step);
+  }
+  render.call(this, this.dt);
+  this.last = this.now;
+  requestAnimationFrame(frame);
+}
 
 function initializeBoostBar() {
   $(function() {
@@ -378,8 +390,8 @@ function bindKeyAndButtonEvents() {
     resizeMapToFit.call(this);
   });
 
-  $(document).keydown(this.onKeyDown);
-  $(document).keyup(this.onKeyUp);
+  $(document).keydown(onKeyDown);
+  $(document).keyup(onKeyUp);
   $('#connect-button').click(function(evt) {
     var peerId = $('#peer-id-textbox').val();
     console.log('peer id connecting: ' + peerId);
@@ -392,10 +404,10 @@ function bindKeyAndButtonEvents() {
     }
     console.log('setting center to: ' + searchTerm);
     searchAndCenterMap.call(this, searchTerm);
-    broadcastNewLocation.call(this, mapCenter);
+    broadcastNewLocation.call(this, this.mapCenter);
     randomlyPutItems.call(this);
   });
-  window.onbeforeunload = this.disconnectFromGame;
+  window.onbeforeunload = disconnectFromGame;
 }
 
 function disconnectFromGame() {
@@ -684,14 +696,14 @@ function moveCar() {
   }
 
   if ((!this.upDown && !this.downDown) || (!this.ctrlDown && Math.abs(this.speed) > this.MAX_NORMAL_SPEED)) {
-    if (speed > -0.01 && speed < 0.01) {
-      speed = 0;
+    if (this.speed > -0.01 && this.speed < 0.01) {
+      this.speed = 0;
     } else {
-      speed /= deceleration;
+      this.speed /= this.deceleration;
     }
   }
 
-  if ((!leftDown && !rightDown) || (!ctrlDown && Math.abs(horizontalSpeed) > MAX_NORMAL_SPEED)) {
+  if ((!this.leftDown && !this.rightDown) || (!this.ctrlDown && Math.abs(this.horizontalSpeed) > this.MAX_NORMAL_SPEED)) {
     if (this.horizontalSpeed > -0.01 && this.horizontalSpeed < 0.01) {
       this.horizontalSpeed = 0;
     } else {
@@ -1243,7 +1255,7 @@ function setDestination(location, arrowImageName) {
 }
 
 function rotateCar() {
-  this.rotation = getAngle.call(this, speed, horizontalSpeed);
+  this.rotation = getAngle.call(this, this.speed, this.horizontalSpeed);
   this.rotationCss = '-ms-transform: rotate(' + this.rotation + 'deg); /* IE 9 */ -webkit-transform: rotate(' + this.rotation + 'deg); /* Chrome, Safari, Opera */ transform: rotate(' + this.rotation + 'deg);';
 }
 
@@ -1273,26 +1285,26 @@ function update(step) {
   }
 
   // check if user collided with an item or the base
-  var collisionMarker = getCollisionMarker();
+  var collisionMarker = getCollisionMarker.call(this);
   if (collisionMarker) {
-    if (!collectedItem && collisionMarker == itemMapObject.marker) {
+    if (!collectedItem && collisionMarker == this.itemMapObject.marker) {
       // user just picked up an item
-      userCollidedWithItem(this.gameDataObject.itemObject);
-      broadcastItemCollected(this.gameDataObject.itemObject.id);
-    } else if (collectedItem && collisionMarker == myTeamBaseMapObject.marker) {
+      userCollidedWithItem.call(this, this.gameDataObject.itemObject);
+      broadcastItemCollected.call(this, this.gameDataObject.itemObject.id);
+    } else if (this.collectedItem && collisionMarker == this.myTeamBaseMapObject.marker) {
       // user has an item and is back at the base
-      userReturnedItemToBase();
-      broadcastItemReturned(peer.id);
-      randomlyPutItems();
+      userReturnedItemToBase.call(this);
+      broadcastItemReturned.call(this, this.peer.id);
+      randomlyPutItems.call(this);
     }
   }
 
-  broadcastMyCarLocation();
+  broadcastMyCarLocation.call(this);
 
   // if the game has started and we're the host, check
   // for any peers who haven't sent an update in too long
-  if (hostPeerId && peer && peer.id && hostPeerId == peer.id) {
-    cleanupAnyDroppedConnections();
+  if (this.hostPeerId && this.peer && this.peer.id && this.hostPeerId == this.peer.id) {
+    cleanupAnyDroppedConnections.call(this);
   }
 }
 
@@ -1327,15 +1339,15 @@ function render(dt) {
 }
 
 function broadcastMyCarLocation() {
-  for (var user in otherUsers) {
-    if (this.otherUsers[user].peerJsConnection && this.otherUsers[user].peerJsConnection.open && mapCenter) {
+  for (var user in this.otherUsers) {
+    if (this.otherUsers[user].peerJsConnection && this.otherUsers[user].peerJsConnection.open && this.mapCenter) {
       this.otherUsers[user].peerJsConnection.send({
         carLatLng: {
-          lat: mapCenter.lat(),
-          lng: mapCenter.lng()
+          lat: this.mapCenter.lat(),
+          lng: this.mapCenter.lng()
         },
-        peerId: peer.id,
-        username: username
+        peerId: this.peer.id,
+        username: this.username
       });
     }
   }
@@ -1449,22 +1461,22 @@ function broadcastNewLocation(location) {
 // checks to see if they have collided with either an item or the base
 function getCollisionMarker() {
   // compute the distance between my car and the destination
-  if (destination) {
-    var maxDistanceAllowed = carToItemCollisionDistance;
-    var distance = google.maps.geometry.spherical.computeDistanceBetween(mapCenter, destination);
+  if (this.destination) {
+    var maxDistanceAllowed = this.carToItemCollisionDistance;
+    var distance = google.maps.geometry.spherical.computeDistanceBetween(this.mapCenter, this.destination);
     // The base is bigger, so be more lenient when checking for a base collision
-    if (destination == myTeamBaseMapObject.location) {
-      maxDistanceAllowed = carToBaseCollisionDistance;
+    if (this.destination == this.myTeamBaseMapObject.location) {
+      maxDistanceAllowed = this.carToBaseCollisionDistance;
     }
     if (distance < maxDistanceAllowed) {
-      if (destination == itemMapObject.location) {
-        console.log('user ' + peer.id + ' collided with item');
-        return itemMapObject.marker;
-      } else if (destination == myTeamBaseMapObject.location) {
-        if (collectedItem) {
-          console.log('user ' + peer.id + ' has an item and collided with base');
+      if (this.destination == this.itemMapObject.location) {
+        console.log('user ' + this.peer.id + ' collided with item');
+        return this.itemMapObject.marker;
+      } else if (this.destination == this.myTeamBaseMapObject.location) {
+        if (this.collectedItem) {
+          console.log('user ' + this.peer.id + ' has an item and collided with base');
         }
-        return myTeamBaseMapObject.marker;
+        return this.myTeamBaseMapObject.marker;
       }
     }
   }
@@ -1531,18 +1543,6 @@ function onKeyUp(evt) {
 // game loop helpers
 function timestamp() {
   return window.performance && window.performance.now ? window.performance.now() : new Date().getTime();
-}
-
-function frame() {
-  this.now = timestamp.call(this);
-  this.dt = this.dt + Math.min(1, (this.now - this.last) / 1000);
-  while (this.dt > this.step) {
-    this.dt = this.dt - this.step;
-    update.call(this, this.step);
-  }
-  render.call(this, this.dt);
-  this.last = this.now;
-  requestAnimationFrame.call(this, frame);
 }
 
 // don't think we'll need to go to the user's location, but might be useful
