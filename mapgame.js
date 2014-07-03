@@ -50,45 +50,6 @@ function SmugglersTown(firebaseBaseUrl) {
 
 
 
-  // team data
-  // the team objects will be of this form:
-  // {
-  //   users: [{
-  //     peerId: 123456789,
-  //     username: 'roy'
-  //   }, {
-  //     peerId: 987654321,
-  //     username: 'ham'
-  //   }],
-  //   baseObject: {
-  //     location: {
-  //       lat: 34,
-  //       lng: -133
-  //     }
-  //   },
-  //   numItemsReturned: 0
-  // }
-  this.teamTownObject = {
-    users: [],
-    baseObject: {
-      location: {
-        lat: 36.151103,
-        lng: -113.208565
-      }
-    },
-    numItemsReturned: 0
-  };
-  this.teamCrushObject = {
-    users: [],
-    baseObject: {
-      location: {
-        lat: 36.151103,
-        lng: -113.208565
-      }
-    },
-    numItemsReturned: 0
-  };
-
   // for time-based game loop
   this.now;
   this.dt = 0;
@@ -140,8 +101,26 @@ function SmugglersTown(firebaseBaseUrl) {
   // gameplay
 
   this.gameDataObject = {
-    teamTownObject: this.teamTownObject,
-    teamCrushObject: this.teamCrushObject,
+    teamTownObject: {
+      users: [],
+      baseObject: {
+        location: {
+          lat: 36.151103,
+          lng: -113.208565
+        }
+      },
+      numItemsReturned: 0
+    },
+    teamCrushObject: {
+      users: [],
+      baseObject: {
+        location: {
+          lat: 36.151103,
+          lng: -113.208565
+        }
+      },
+      numItemsReturned: 0
+    },
     peerIdOfCarWithItem: null,
     initialLocation: {
       lat: this.mapCenter.lat(),
@@ -165,6 +144,25 @@ function SmugglersTown(firebaseBaseUrl) {
   //     }
   //   }
   // }
+
+  // the <team_object> structures above will be of this form:
+  // {
+  //   users: [{
+  //     peerId: 123456789,
+  //     username: 'roy'
+  //   }, {
+  //     peerId: 987654321,
+  //     username: 'ham'
+  //   }],
+  //   baseObject: {
+  //     location: {
+  //       lat: 34,
+  //       lng: -133
+  //     }
+  //   },
+  //   numItemsReturned: 0
+  // }
+
 
 
   this.collectedItem = null;
@@ -354,17 +352,17 @@ function initializeBoostBar() {
 }
 
 function mapIsReady() {
-  this.matchmakerTown.joinOrCreateGame(this.username, this.peer.id, connectToAllNonHostUsers.bind(this), gameJoined.bind(this))
+  this.matchmakerTown.joinOrCreateSession(this.username, this.peer.id, connectToAllNonHostUsers.bind(this), gameJoined.bind(this))
 }
 
-function gameJoined(gameData, isNewGame) {
-  this.gameId = gameData.id;
+function gameJoined(sessionData, isNewGame) {
+  this.gameId = sessionData.id;
   if (isNewGame) {
     // we're hosting the game ourself
     this.hostPeerId = this.peer.id;
 
     // first user is always on team town
-    gameData.teamTownObject.users = [{
+    this.gameDataObject.teamTownObject.users = [{
       peerId: this.peer.id,
       username: this.username
     }];
@@ -372,7 +370,7 @@ function gameJoined(gameData, isNewGame) {
     $('#team-town-text').css('color', 'black');
   } else {
     // someone else is already the host
-    this.hostPeerId = gameData.hostPeerId;
+    this.hostPeerId = sessionData.hostPeerId;
     activateTeamCrushInUI.call(this);
   }
   updateUsernamesInUI.call(this);
@@ -445,7 +443,7 @@ function bindKeyAndButtonEvents() {
 
 function disconnectFromGame() {
   if (this.peer && this.peer.id && this.gameId) {
-    matchmakerTown.removePeerFromGame(this.gameId, this.peer.id);
+    matchmakerTown.removePeerFromSession(this.gameId, this.peer.id);
   }
 }
 
@@ -866,7 +864,7 @@ function otherUserDisconnected(otherUserPeerId) {
   removeUserFromUI.call(this, otherUserPeerId);
 
   // remove this user from the game in Firebase:
-  matchmakerTown.removePeerFromGame(gameId, otherUserPeerId);
+  matchmakerTown.removePeerFromSession(gameId, otherUserPeerId);
 
   if (this.hostPeerId == otherUserPeerId) {
     // if that user was the host, set us as the new host
