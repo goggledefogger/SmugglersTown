@@ -438,7 +438,7 @@ function bindKeyAndButtonEvents() {
     broadcastNewLocation.call(this, this.mapCenter);
     randomlyPutItems.call(this);
   });
-  window.onbeforeunload = disconnectFromGame;
+  window.onbeforeunload = disconnectFromGame.bind(this);
 }
 
 function disconnectFromGame() {
@@ -1193,7 +1193,7 @@ function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
     return;
   }
   if (this.timeOfLastTransfer) {
-    var timeSinceLastTransfer = ((new Date()).getTime()) - timeOfLastTransfer;
+    var timeSinceLastTransfer = ((new Date()).getTime()) - this.timeOfLastTransfer;
     // if not enough time has passed since the last transfer, return
     if (timeSinceLastTransfer < this.timeDelayBetweenTransfers) {
       return;
@@ -1276,7 +1276,7 @@ function userCollidedWithItem(collisionItemObject) {
   this.collectedItem = collisionItemObject;
   this.itemMapObject.marker.setMap(null);
   collisionItemObject.location = null;
-  this.gameDataObject.peerIdOfCarWithItem = peer.id;
+  this.gameDataObject.peerIdOfCarWithItem = this.peer.id;
   this.teamTownBaseMapObject.marker.setIcon(this.teamTownBaseIcon);
   this.teamCrushBaseMapObject.marker.setIcon(this.teamCrushBaseIcon);
   setDestination.call(this, this.myTeamBaseMapObject.location, 'arrow_blue.png');
@@ -1320,7 +1320,7 @@ function update(step) {
   // check if user collided with an item or the base
   var collisionMarker = getCollisionMarker.call(this);
   if (collisionMarker) {
-    if (!collectedItem && collisionMarker == this.itemMapObject.marker) {
+    if (!this.collectedItem && collisionMarker == this.itemMapObject.marker) {
       // user just picked up an item
       userCollidedWithItem.call(this, this.gameDataObject.itemObject);
       broadcastItemCollected.call(this, this.gameDataObject.itemObject.id);
@@ -1412,7 +1412,7 @@ function broadcastNewItem(location, itemId) {
       this.otherUsers[user].peerJsConnection.send({
         event: {
           name: 'new_item',
-          host_user: peer.id,
+          host_user: this.peer.id,
           location: {
             lat: simpleItemLatLng.lat,
             lng: simpleItemLatLng.lng
@@ -1433,7 +1433,7 @@ function broadcastItemReturned() {
     this.otherUsers[user].peerJsConnection.send({
       event: {
         name: 'item_returned',
-        user_id_of_car_that_returned_item: peer.id,
+        user_id_of_car_that_returned_item: this.peer.id,
         now_num_items: this.gameDataObject.teamTownObject.numItemsReturned,
       }
     });
@@ -1441,12 +1441,12 @@ function broadcastItemReturned() {
 }
 
 function broadcastItemCollected(itemId) {
-  console.log('broadcasting item id ' + itemId + ' collected by user ' + peer.id);
+  console.log('broadcasting item id ' + itemId + ' collected by user ' + this.peer.id);
   for (var user in this.otherUsers) {
     if (!this.otherUsers[user].peerJsConnection || !this.otherUsers[user].peerJsConnection.open) {
       return;
     }
-    this.gameDataObject.peerIdOfCarWithItem = peer.id;
+    this.gameDataObject.peerIdOfCarWithItem = this.peer.id;
     this.otherUsers[user].peerJsConnection.send({
       event: {
         name: 'item_collected',
@@ -1485,7 +1485,7 @@ function broadcastNewLocation(location) {
         name: 'new_location',
         lat: location.lat(),
         lng: location.lng(),
-        originating_peer_id: peer.id
+        originating_peer_id: this.peer.id
       }
     });
   }
