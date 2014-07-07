@@ -352,11 +352,17 @@ function initializeBoostBar() {
 }
 
 function mapIsReady() {
-  this.matchmakerTown.joinOrCreateSession(this.username, this.peer.id, connectToAllNonHostUsers.bind(this), gameJoined.bind(this))
+  this.matchmakerTown.joinOrCreateSession(this.username, this.peer.id, gameJoined.bind(this))
 }
+
+/*
+ * Called when the matchmaker has found a game for us
+ *
+ */
 
 function gameJoined(sessionData, isNewGame) {
   this.gameId = sessionData.id;
+
   if (isNewGame) {
     // we're hosting the game ourself
     this.hostPeerId = this.peer.id;
@@ -372,6 +378,11 @@ function gameJoined(sessionData, isNewGame) {
     // someone else is already the host
     this.hostPeerId = sessionData.hostPeerId;
     activateTeamCrushInUI.call(this);
+    // P2P connect to all other users
+    var userIds = sessionData.users.map(function(userObj) {
+      return userObj.peerId;
+    });
+    connectToAllOtherUsers.call(this, userIds);
   }
   updateUsernamesInUI.call(this);
   updateCarIcons.call(this);
@@ -408,10 +419,10 @@ function activateTeamCrushInUI() {
 }
 
 
-function connectToAllNonHostUsers(nonHostPeerIds) {
-  for (var i = 0; i < nonHostPeerIds.length; i++) {
-    if (nonHostPeerIds[i] != this.peer.id) {
-      connectToPeer.call(this, nonHostPeerIds[i]);
+function connectToAllOtherUsers(allPeerIds) {
+  for (var i = 0; i < allPeerIds.length; i++) {
+    if (allPeerIds[i] != this.peer.id) {
+      connectToPeer.call(this, allPeerIds[i]);
     }
   }
 }

@@ -30,11 +30,32 @@ function MatchmakerTown(firebaseBaseUrl) {
 }
 
 /**
- *  connect to a session
+ *  joinOrCreateSession(username, peerId, joinedSessionCallback)
+ *
+ *  username: Display name of user
+ *  peerId: Unique user ID
+ *  joinedSessionCallback(sessionData, isNewGame):
+ *     Will be called at the end when
+ *     we either joined or created a game
+ *
+ *  sessionData: of this form
+ *  {
+ *    "hostPeerId": "87b3fvv9ezgaxlxr",
+ *    "id": 9116827,
+ *    "lastUpdateTime": 1404707577851,
+ *    "users": [{
+ *      "peerId": "87b3fvv9ezgaxlxr",
+ *      "username": "Ninja Roy"
+ *    }, {
+ *      "peerId": "r6isnaab5aikvs4i",
+ *       "username": "Town Crusher"
+ *   }]
+ *  }
  */
-MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, connectToUsersCallback, joinedSessionCallback) {
+MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, joinedSessionCallback) {
   var self = this;
 
+  // if there are any inactive sessions clean them up
   callAsyncCleanupInactiveSessions.call(this);
   console.log('trying to join session');
   initializeServerHelperWorker.call(this, window);
@@ -66,7 +87,14 @@ MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, connec
           counter++;
           if (jsonObj.hasOwnProperty(key)) {
             sessionId = jsonObj[key];
-            getSessionLastUpdateTime.call(self, sessionId, username, peerId, connectToUsersCallback, joinedSessionCallback, doneGettingUpdateTime.bind(self), counter == numAvailableSessions, self);
+            getSessionLastUpdateTime.call(
+              self,
+              sessionId,
+              username,
+              peerId,
+              joinedSessionCallback,
+              doneGettingUpdateTime.bind(self),
+              counter == numAvailableSessions);
           }
         }
       }
@@ -76,7 +104,9 @@ MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, connec
 
 
 /**
- *  remove a peer from the session
+ * removePeerFromSession(sessionId, peerId):
+ * remove a peer from the session
+ *
  */
 MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
   var self = this;
@@ -114,12 +144,22 @@ MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
   });
 }
 
+/*
+ * switchToNewHost(sessionId, newHostPeerId):
+ * if for whatever reason there is a new host, store that in Firebase
+ *
+ */
 MatchmakerTown.prototype.switchToNewHost = function(sessionId, newHostPeerId) {
   if (!newHostPeerId) {
     return;
   }
   this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId).child('hostPeerId').set(newHostPeerId);
 }
+
+
+/*
+ * private functions
+ */
 
 function createNewSessionData(username, peerId) {
   var sessionId = createNewSessionId.call(this);
@@ -133,12 +173,11 @@ function createNewSessionData(username, peerId) {
   };
 }
 
-
-function doneGettingUpdateTime(lastUpdateTime, sessionId, isTheLastSession, username, peerId, connectToUsersCallback, joinedSessionCallback) {
+function doneGettingUpdateTime(lastUpdateTime, sessionId, isTheLastSession, username, peerId, joinedSessionCallback) {
   // if the session is still active join it
   if (lastUpdateTime) {
     if (!isTimeoutTooLong.call(this, lastUpdateTime)) {
-      joinExistingSession.call(this, sessionId, username, peerId, connectToUsersCallback, joinedSessionCallback);
+      joinExistingSession.call(this, sessionId, username, peerId, joinedSessionCallback);
       return;
     } else {
       callAsyncCleanupInactiveSessions.call(this);
@@ -154,12 +193,12 @@ function doneGettingUpdateTime(lastUpdateTime, sessionId, isTheLastSession, user
   }
 }
 
-function getSessionLastUpdateTime(sessionId, username, peerId, connectToUsersCallback, joinedSessionCallback, doneGettingUpdateTimeCallback, isTheLastSession) {
+function getSessionLastUpdateTime(sessionId, username, peerId, joinedSessionCallback, doneGettingUpdateTimeCallback, isTheLastSession) {
   var self = this;
   this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId).once('value', function(data) {
     if (data.val() && data.val().lastUpdateTime) {
       console.log('found update time: ' + data.val().lastUpdateTime)
-      doneGettingUpdateTimeCallback(data.val().lastUpdateTime, sessionId, isTheLastSession, username, peerId, connectToUsersCallback, joinedSessionCallback, self);
+      doneGettingUpdateTimeCallback(data.val().lastUpdateTime, sessionId, isTheLastSession, username, peerId, joinedSessionCallback, self);
     }
   });
 }
@@ -171,10 +210,13 @@ function initializeServerPing() {
 
 function initializeServerHelperWorker(windowObject) {
   if (typeof(windowObject.Worker) !== "undefined") {
+    //TODO: make this a module
     this.myWorker = new Worker("asyncmessager.js");
     this.myWorker.addEventListener('message', processMessageEvent.bind(this), false);
   } else {
     console.log("Sorry, your browser does not support Web Workers...");
+    // fine, we'll do it synchronously
+    cleanupSessions.call(this);
   }
 }
 
@@ -186,7 +228,6 @@ function callAsyncCleanupInactiveSessions() {
     });
   }
 }
-
 
 function setServerStatusAsStillActive() {
   console.log('pinging server');
@@ -216,12 +257,10 @@ function cleanupSessions() {
       if (shouldDeleteSession) {
         deleteSession.call(self, childSnapshot.name());
         childSnapshot.ref().remove();
-
       }
     });
   });
 }
-
 
 function isTimeoutTooLong(lastUpdateTime) {
   if (!lastUpdateTime) {
@@ -240,7 +279,6 @@ function processMessageEvent(event) {
       break;
   }
 }
-
 
 function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
   var self = this;
@@ -300,23 +338,23 @@ function createNewSessionId() {
   return getRandomInRange(1, 10000000);
 }
 
-function joinExistingSession(sessionId, username, peerId, connectToUsersCallback, joinedSessionCallback) {
+function joinExistingSession(sessionId, username, peerId, joinedSessionCallback) {
   // if a session has already been joined on another thread, don't join another one
   if (this.joinedSession && this.joinedSession >= 0) {
     return;
   }
   this.joinedSession = sessionId;
-  asyncGetSessionData.call(this, sessionId, username, peerId, connectToUsersCallback.bind(this), joinedSessionCallback.bind(this), doneGettingSessionData.bind(this));
+  asyncGetSessionData.call(this, sessionId, username, peerId, joinedSessionCallback.bind(this), doneGettingSessionData.bind(this));
 };
 
-function asyncGetSessionData(sessionId, username, peerId, connectToUsersCallback, joinedSessionCallback, doneGettingSessionDataCallback) {
+function asyncGetSessionData(sessionId, username, peerId, joinedSessionCallback, doneGettingSessionDataCallback) {
   var sessionDataRef = this.sessionRef.child(this.ALL_SESSIONS_LOCATION).child(sessionId);
   sessionDataRef.once('value', function(data) {
-    doneGettingSessionDataCallback(data, username, peerId, connectToUsersCallback, joinedSessionCallback);
+    doneGettingSessionDataCallback(data, username, peerId, joinedSessionCallback);
   });
 }
 
-function doneGettingSessionData(sessionDataSnapshot, username, peerId, connectToUsersCallback, joinedSessionCallback) {
+function doneGettingSessionData(sessionDataSnapshot, username, peerId, joinedSessionCallback) {
   var sessionData = sessionDataSnapshot.val();
   var newUser = {
     peerId: peerId,
@@ -345,7 +383,6 @@ function doneGettingSessionData(sessionDataSnapshot, username, peerId, connectTo
   for (var j = 0; j < sessionData.users.length; j++) {
     peerIdsArray.push(sessionData.users[j].peerId);
   }
-  connectToUsersCallback(peerIdsArray);
   initializeServerPing.call(this);
   joinedSessionCallback(sessionData, false);
 }
