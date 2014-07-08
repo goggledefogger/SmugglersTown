@@ -58,7 +58,6 @@ MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, joined
   // if there are any inactive sessions clean them up
   callAsyncCleanupInactiveSessions.call(this);
   console.log('trying to join session');
-  initializeServerHelperWorker.call(this, window);
   var availableSessionsDataRef = this.sessionRef.child(this.AVAILABLE_SESSIONS_LOCATION);
   availableSessionsDataRef.once('value', function(data) {
     // only join a session if one isn't joined already
@@ -102,6 +101,34 @@ MatchmakerTown.prototype.joinOrCreateSession = function(username, peerId, joined
   });
 }
 
+/**
+ *  createSession(username, peerId, sessionCreatedCallback)
+ *
+ *  username: Display name of user
+ *  peerId: Unique user ID
+ *  sessionCreatedCallback(sessionData):
+ *     Will be called at the end when we created a session
+ *
+ *  sessionData: of this form
+ *  {
+ *    "hostPeerId": "87b3fvv9ezgaxlxr",
+ *    "id": 9116827,
+ *    "lastUpdateTime": 1404707577851,
+ *    "users": [{
+ *      "peerId": "87b3fvv9ezgaxlxr",
+ *      "username": "Ninja Roy"
+ *    }]
+ *  }
+ */
+MatchmakerTown.prototype.createSession = function(username, peerId, sessionCreatedCallback) {
+  // if there are any inactive sessions clean them up
+  callAsyncCleanupInactiveSessions.call(this);
+  console.log('trying to create session');
+  var sessionData = createNewSessionData.call(this, username, peerId);
+  createNewSessionInFirebase.call(this, username, peerId, sessionData);
+  initializeServerPing.call(this);
+  sessionCreatedCallback(sessionData);
+}
 
 /**
  * removePeerFromSession(sessionId, peerId):
@@ -210,9 +237,11 @@ function initializeServerPing() {
 
 function initializeServerHelperWorker(windowObject) {
   if (typeof(windowObject.Worker) !== "undefined") {
-    //TODO: make this a module
-    this.myWorker = new Worker("asyncmessager.js");
-    this.myWorker.addEventListener('message', processMessageEvent.bind(this), false);
+    if (!this.myWorker) {
+      //TODO: make this a module
+      this.myWorker = new Worker("js/asyncmessager.js");
+      this.myWorker.addEventListener('message', processMessageEvent.bind(this), false);
+    }
   } else {
     console.log("Sorry, your browser does not support Web Workers...");
     // fine, we'll do it synchronously
@@ -221,6 +250,8 @@ function initializeServerHelperWorker(windowObject) {
 }
 
 function callAsyncCleanupInactiveSessions() {
+  initializeServerHelperWorker.call(this, window);
+
   // do it on a web worker thread
   if (this.myWorker) {
     this.myWorker.postMessage({
