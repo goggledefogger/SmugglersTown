@@ -18,3 +18,6 @@ Smuggler's Town
 ### Who do I talk to? ###
 
 * Contact roy.town@outlook.com
+
+### License ###
+MIT
