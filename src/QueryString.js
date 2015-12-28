@@ -42,6 +42,8 @@
 // immediately after each ampersand in the regular expression in the first
 // function below.
 
+module.exports = QueryString;
+
 function QueryString(qs)
 {
     this.dict= {};

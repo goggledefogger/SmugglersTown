@@ -1,0 +1,13 @@
+{
+  "name": "SmugglersTown",
+  "version": "0.0.0",
+  "main": "index.js",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "browserify": "^12.0.1",
+    "firebase": "^2.3.2",
+    "jquery": "2.1.0",
+    "peerjs": "^0.3.14"
+  }
+}
