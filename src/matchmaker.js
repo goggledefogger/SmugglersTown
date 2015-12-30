@@ -242,7 +242,7 @@ function initializeServerHelperWorker(windowObject) {
   if (typeof(windowObject.Worker) !== "undefined") {
     if (!this.myWorker) {
       //TODO: make this a module
-      this.myWorker = new Worker("js/asyncmessager.js");
+      this.myWorker = new Worker("/js/asyncmessager.js");
       this.myWorker.addEventListener('message', processMessageEvent.bind(this), false);
     }
   } else {
@@ -289,7 +289,7 @@ function cleanupSessions() {
       }
 
       if (shouldDeleteSession) {
-        deleteSession.call(self, childSnapshot.name());
+        deleteSession.call(self, childSnapshot.key());
         childSnapshot.ref().remove();
       }
     });
