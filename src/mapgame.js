@@ -10,6 +10,8 @@
  *  deps
  */
 var $ = require('jquery')
+require('jquery-ui')
+require('./utilities.js')
 var MatchmakerTown = require('./matchmaker.js');
 var QueryString = require('./QueryString')
 var Peer = require('peerjs')
@@ -204,50 +206,50 @@ function SmugglersTown(firebaseBaseUrl) {
 
   // images
   this.itemIcon = {
-    url: 'images/smoking_toilet_small.gif'
+    url: '/images/smoking_toilet_small.gif'
   };
 
   this.teamCrushUserCarIcon = {
-    url: 'images/crush_car.png',
+    url: '/images/crush_car.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
   this.teamTownUserCarIcon = {
-    url: 'images/car.png',
+    url: '/images/car.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
   this.teamTownOtherCarIcon = {
-    url: 'images/team_town_other_car.png',
+    url: '/images/team_town_other_car.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
   this.teamCrushOtherCarIcon = {
-    url: 'images/team_crush_other_car.png',
+    url: '/images/team_crush_other_car.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
 
   this.teamTownBaseIcon = {
-    url: 'images/fort.png',
+    url: '/images/fort.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(75, 120)
   };
 
   this.teamCrushBaseIcon = {
-    url: 'images/opponent_fort.png',
+    url: '/images/opponent_fort.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(75, 120)
   };
 
   this.teamTownBaseTransparentIcon = {
-    url: 'images/fort_transparent.png',
+    url: '/images/fort_transparent.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(75, 120)
   };
 
   this.teamCrushBaseTransparentIcon = {
-    url: 'images/opponent_fort_transparent.png',
+    url: '/images/opponent_fort_transparent.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(75, 120)
   };
@@ -859,7 +861,7 @@ function initializePeerConnection(peerJsConnection, otherUserPeerId) {
 }
 
 function fadeArrowToImage(imageFileName) {
-  $("#arrow-img").attr('src', 'images/' + imageFileName);
+  $("#arrow-img").attr('src', '/images/' + imageFileName);
 }
 
 function otherUserDisconnected(otherUserPeerId) {
@@ -1104,9 +1106,9 @@ function updateCarIcons() {
 }
 
 function updateMyCarIcon() {
-  var userCarImgSrc = 'images/crush_car.png';
+  var userCarImgSrc = '/images/crush_car.png';
   if (userIsOnTownTeam.call(this, this.peer.id)) {
-    userCarImgSrc = 'images/car.png';
+    userCarImgSrc = '/images/car.png';
   }
   $('#car-img').attr('src', userCarImgSrc);
 }

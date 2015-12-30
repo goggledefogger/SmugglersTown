@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+
+var build = require('./build')
+var serve = require('../server')
+
+build(function (err) {
+  if (err) onerror(err)
+
+  startserver()
+})
+
+function startserver () {
+  serve(function (err) {
+    if (err) onerror(err)
+    else onlog('server restarted on ' + process.env.PORT)
+  })
+}
+
+function onlog (msg) {
+  console.log(stamptime(), msg)
+}
+
+function onerror (err) {
+  console.error(stamptime(), err.message)
+}
+
+function stamptime () {
+  return '[ ' + (new Date()).getTime() + ' ]'
+}
