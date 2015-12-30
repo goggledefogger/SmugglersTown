@@ -293,7 +293,7 @@ SmugglersTown.prototype.initialize = function() {
   //tryFindingLocation();
 
 
-  bindKeyAndButtonEvents.call(this);
+  this.bindKeyAndButtonEvents()
 
   initializeBoostBar.call(this);
 
@@ -427,9 +427,11 @@ function connectToAllOtherUsers(allPeerIds) {
   }
 }
 
-function bindKeyAndButtonEvents() {
+SmugglersTown.prototype.bindKeyAndButtonEvents = function() {
+  var self = this
+
   $(window).resize(function() {
-    resizeMapToFit.call(this);
+    resizeMapToFit.call(self);
   });
 
   $(document).keydown(this.onKeyDown);
@@ -437,7 +439,7 @@ function bindKeyAndButtonEvents() {
   $('#connect-button').click(function(evt) {
     var peerId = $('#peer-id-textbox').val();
     console.log('peer id connecting: ' + peerId);
-    connectToPeer.call(this, peerId);
+    connectToPeer.call(self, peerId);
   });
   $('#set-center-button').click(function(evt) {
     var searchTerm = $('#map-center-textbox').val();
@@ -445,9 +447,9 @@ function bindKeyAndButtonEvents() {
       return;
     }
     console.log('setting center to: ' + searchTerm);
-    searchAndCenterMap.call(this, searchTerm);
-    broadcastNewLocation.call(this, this.mapCenter);
-    randomlyPutItems.call(this);
+    searchAndCenterMap.call(self, searchTerm);
+    broadcastNewLocation.call(self, self.mapCenter);
+    randomlyPutItems.call(self);
   });
   window.onbeforeunload = disconnectFromGame.bind(this);
 }
