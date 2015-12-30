@@ -27482,7 +27482,7 @@ $(document).ready(function() {
  */
 var $ = require('jquery')
 require('jquery-ui')
-require('./utilities.js')
+var Utilities = require('./utilities.js')
 var MatchmakerTown = require('./matchmaker.js');
 var QueryString = require('./QueryString')
 var Peer = require('peerjs')
@@ -27984,8 +27984,8 @@ function loadMapData(mapIsReadyCallback) {
   // to read static files in
   // you need to pass "-t brfs" to browserify
   // but it's cool cos you can inline base64 encoded images or utf8 html strings
-  //$.getJSON("maps/grandcanyon.json", function(json) {
-  $.getJSON("maps/portland.json", function(json) {
+  //$.getJSON("/maps/grandcanyon.json", function(json) {
+  $.getJSON("/maps/portland.json", function(json) {
     console.log('map data loaded');
     self.mapData = json;
     self.mapDataLoaded = true;
@@ -28070,7 +28070,7 @@ function createTeamCrushBaseObject(lat, lng) {
 
 function randomlyPutItems() {
   var randomLocation = getRandomLocationForItem.call(this);
-  var itemId = getRandomInRange(1, 1000000, 0);
+  var itemId = Utilities.getRandomInRange(1, 1000000, 0);
   this.gameDataObject.itemObject = {
     id: itemId,
     location: {
@@ -28089,9 +28089,9 @@ function getRandomLocationForItem() {
   var centerOfAreaLat = this.myTeamBaseMapObject.location.lat();
   var centerOfAreaLng = this.myTeamBaseMapObject.location.lng();
   while (true) {
-    randomLat = getRandomInRange(centerOfAreaLat -
+    randomLat = Utilities.getRandomInRange(centerOfAreaLat -
       (this.widthOfAreaToPutItems / 2.0), centerOfAreaLat + (this.widthOfAreaToPutItems / 2.0), 7);
-    randomLng = getRandomInRange(centerOfAreaLng -
+    randomLng = Utilities.getRandomInRange(centerOfAreaLng -
       (this.heightOfAreaToPutItems / 2.0), centerOfAreaLng + (this.heightOfAreaToPutItems / 2.0), 7);
     console.log('trying to put item at: ' + randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng);
@@ -29096,6 +29096,7 @@ function mouseUp(e) {
 module.exports = MatchmakerTown;
 
 var Firebase = require('firebase')
+var Utilities = require('./utilities')
 
 /**
  *  constructor
@@ -29456,7 +29457,7 @@ function createNewSessionInFirebase(username, peerId, sessionData) {
 function createNewSessionId() {
   // TODO: replace this with something that won't
   // accidentally have collisions
-  return getRandomInRange(1, 10000000);
+  return Utilities.getRandomInRange(1, 10000000);
 }
 
 function joinExistingSession(sessionId, username, peerId, joinedSessionCallback) {
@@ -29569,10 +29570,30 @@ function addSessionToAvailableSessionsList(sessionId) {
 //   } else {
 //     return null;
 //   }
-},{"firebase":1}],20:[function(require,module,exports){
-function getRandomInRange(from, to, fixed) {
+},{"./utilities":20,"firebase":1}],20:[function(require,module,exports){
+module.exports = Utilities
+
+function Utilities () {
+
+}
+
+Utilities.getRandomInRange = function(from, to, fixed) {
     return (Math.random() * (to - from) + from).toFixed(fixed) * 1;
     // .toFixed() returns string, so ' * 1' is a trick to convert to number
+}
+
+Utilities.getTime = function(zone, success) {
+    var url = 'http://json-time.appspot.com/time.json?tz=' + zone,
+        ud = 'json' + (+new Date());
+    window[ud] = function(o) {
+        success && success(new Date(o.datetime));
+    };
+    document.getElementsByTagName('head')[0].appendChild((function() {
+        var s = document.createElement('script');
+        s.type = 'text/javascript';
+        s.src = url + '&callback=' + ud;
+        return s;
+    })());
 }
 
 Array.prototype.clean = function(deleteValue) {
@@ -29598,17 +29619,4 @@ if (typeof(Number.prototype.toDeg) === "undefined") {
     }
 }
 
-function getTime(zone, success) {
-    var url = 'http://json-time.appspot.com/time.json?tz=' + zone,
-        ud = 'json' + (+new Date());
-    window[ud] = function(o) {
-        success && success(new Date(o.datetime));
-    };
-    document.getElementsByTagName('head')[0].appendChild((function() {
-        var s = document.createElement('script');
-        s.type = 'text/javascript';
-        s.src = url + '&callback=' + ud;
-        return s;
-    })());
-}
 },{}]},{},[17]);

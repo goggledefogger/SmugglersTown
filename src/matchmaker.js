@@ -8,6 +8,7 @@
 module.exports = MatchmakerTown;
 
 var Firebase = require('firebase')
+var Utilities = require('./utilities')
 
 /**
  *  constructor
@@ -368,7 +369,7 @@ function createNewSessionInFirebase(username, peerId, sessionData) {
 function createNewSessionId() {
   // TODO: replace this with something that won't
   // accidentally have collisions
-  return getRandomInRange(1, 10000000);
+  return Utilities.getRandomInRange(1, 10000000);
 }
 
 function joinExistingSession(sessionId, username, peerId, joinedSessionCallback) {

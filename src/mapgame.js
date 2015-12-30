@@ -11,7 +11,7 @@
  */
 var $ = require('jquery')
 require('jquery-ui')
-require('./utilities.js')
+var Utilities = require('./utilities.js')
 var MatchmakerTown = require('./matchmaker.js');
 var QueryString = require('./QueryString')
 var Peer = require('peerjs')
@@ -513,8 +513,8 @@ function loadMapData(mapIsReadyCallback) {
   // to read static files in
   // you need to pass "-t brfs" to browserify
   // but it's cool cos you can inline base64 encoded images or utf8 html strings
-  //$.getJSON("maps/grandcanyon.json", function(json) {
-  $.getJSON("maps/portland.json", function(json) {
+  //$.getJSON("/maps/grandcanyon.json", function(json) {
+  $.getJSON("/maps/portland.json", function(json) {
     console.log('map data loaded');
     self.mapData = json;
     self.mapDataLoaded = true;
@@ -599,7 +599,7 @@ function createTeamCrushBaseObject(lat, lng) {
 
 function randomlyPutItems() {
   var randomLocation = getRandomLocationForItem.call(this);
-  var itemId = getRandomInRange(1, 1000000, 0);
+  var itemId = Utilities.getRandomInRange(1, 1000000, 0);
   this.gameDataObject.itemObject = {
     id: itemId,
     location: {
@@ -618,9 +618,9 @@ function getRandomLocationForItem() {
   var centerOfAreaLat = this.myTeamBaseMapObject.location.lat();
   var centerOfAreaLng = this.myTeamBaseMapObject.location.lng();
   while (true) {
-    randomLat = getRandomInRange(centerOfAreaLat -
+    randomLat = Utilities.getRandomInRange(centerOfAreaLat -
       (this.widthOfAreaToPutItems / 2.0), centerOfAreaLat + (this.widthOfAreaToPutItems / 2.0), 7);
-    randomLng = getRandomInRange(centerOfAreaLng -
+    randomLng = Utilities.getRandomInRange(centerOfAreaLng -
       (this.heightOfAreaToPutItems / 2.0), centerOfAreaLng + (this.heightOfAreaToPutItems / 2.0), 7);
     console.log('trying to put item at: ' + randomLat + ',' + randomLng);
     randomLocation = new google.maps.LatLng(randomLat, randomLng);
