@@ -27737,6 +27737,8 @@ function SmugglersTown(firebaseBaseUrl) {
   });
   this.peer.on('connection', connectedToPeer.bind(this));
   this.ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 30 * 1000;
+
+  this._connectionTimers = {}
 }
 
 /**
@@ -28249,6 +28251,7 @@ function connectToPeer(otherUserPeerId) {
   var peerJsConnection = this.peer.connect(otherUserPeerId);
   peerJsConnection.on('open', function() {
     console.log('connection open');
+    clearTimeout(self._connectionTimers[otherUserPeerId])
     connectedToPeer.call(self, peerJsConnection);
   });
   peerJsConnection.on('error', function(err) {
@@ -28256,6 +28259,9 @@ function connectToPeer(otherUserPeerId) {
     console.log(err);
     throw "PeerJS connection error";
   });
+  this._connectionTimers[otherUserPeerId] = setTimeout(function() {
+    otherUserDisconnected.call(self, otherUserPeerId);
+  }, 5000)
 }
 
 function connectedToPeer(peerJsConnection) {
@@ -28266,6 +28272,7 @@ function connectedToPeer(peerJsConnection) {
   // if this is the first time we've connected to this uesr,
   // add the HTML for the new user
   if (!this.otherUsers[otherUserPeerId] || !this.otherUsers[otherUserPeerId].peerJsConnection) {
+    console.log('first time connecting to ' + otherUserPeerId)
     initializePeerConnection.call(this, peerJsConnection, otherUserPeerId);
     assignUserToTeam.call(this, otherUserPeerId);
     createOtherUserCar.call(this, otherUserPeerId);
@@ -28324,6 +28331,7 @@ function initializePeerConnection(peerJsConnection, otherUserPeerId) {
     this.otherUsers[otherUserPeerId] = {};
   }
   this.otherUsers[otherUserPeerId].peerJsConnection = peerJsConnection;
+  console.log('added other user to my array', otherUserPeerId)
   this.otherUsers[otherUserPeerId].peerJsConnection.on('close', function() {
     console.log('closing connection');
     otherUserDisconnected.call(self, otherUserPeerId);
@@ -28338,19 +28346,12 @@ function fadeArrowToImage(imageFileName) {
 }
 
 function otherUserDisconnected(otherUserPeerId) {
-  // should be called after the peerJs connection
-  // has already been closed
-  if (!this.otherUsers[otherUserPeerId]) {
-    return;
-  }
-
-  removeUserFromTeam.call(this, otherUserPeerId);
-  removeUserFromUI.call(this, otherUserPeerId);
-
   // remove this user from the game in Firebase:
   this.matchmakerTown.removePeerFromSession(this.gameId, otherUserPeerId);
 
-  if (this.hostPeerId == otherUserPeerId) {
+
+
+  if (!this.hostPeerId || this.hostPeerId == otherUserPeerId) {
     // if that user was the host, set us as the new host
     this.hostPeerId = this.peer.id;
     this.matchmakerTown.switchToNewHost(this.gameId, this.peer.id);
@@ -28361,6 +28362,10 @@ function otherUserDisconnected(otherUserPeerId) {
   if (this.gameDataObject.peerIdOfCarWithItem && this.gameDataObject.peerIdOfCarWithItem == otherUserPeerId && this.hostPeerId == this.peer.id) {
     randomlyPutItems.call(this);
   }
+
+
+  removeUserFromTeam.call(this, otherUserPeerId);
+  removeUserFromUI.call(this, otherUserPeerId);
 
   // delete that user's data
   delete this.otherUsers[otherUserPeerId];
@@ -28389,7 +28394,7 @@ function removeUserFromTeam(userPeerId) {
 
 function removeUserFromUI(peerId) {
   // remove the other user's car from the map
-  this.otherUsers[peerId].car.marker.setMap(null);
+  this.otherUsers[peerId] && this.otherUsers[peerId].car.marker.setMap(null);
 
   // if their team has no more users, grey out
   // their score box
@@ -29238,7 +29243,7 @@ MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
       return;
     }
     if (data.val().hostPeerId == peerId) {
-      findNewHostPeerId.call(self, sessionId, peerId, switchToNewHost);
+      findNewHostPeerId.call(self, sessionId, peerId);
     }
 
     // Firebase weirdness: the users array can still have undefined elements
@@ -29404,7 +29409,7 @@ function processMessageEvent(event) {
   }
 }
 
-function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
+function findNewHostPeerId(sessionId, existingHostPeerId) {
   var self = this;
 
   // reset the hostPeerId so it prevents the leaving host's browser
@@ -29428,10 +29433,10 @@ function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
     for (var i = 0; i < users.length; i++) {
       if (users[i] && users[i].peerId != existingHostPeerId) {
         // we've found a new user to be the host, return their id
-        callback(sessionId, users[i].peerId);
+        this.switchToNewHost(sessionId, users[i].peerId);
       }
     }
-    callback(sessionId, null);
+    this.switchToNewHost(sessionId, null);
   });
 }
 
@@ -29453,6 +29458,7 @@ function createNewSessionInFirebase(username, peerId, sessionData) {
   var newAvailableSessionDataRef = this.sessionRef.child(this.AVAILABLE_SESSIONS_LOCATION).child(sessionData.id);
   newAvailableSessionDataRef.set(sessionData.id);
   this.joinedSession = sessionData.id;
+  this.userSlot = 0;
   initializeServerPing.call(this);
 }
 
@@ -29492,7 +29498,8 @@ function doneGettingSessionData(sessionDataSnapshot, username, peerId, joinedSes
       usersArray.push(sessionData.users[i]);
     }
   }
-  usersArray.push(newUser);
+  var newLength = usersArray.push(newUser);
+  this.userSlot = newLength - 1;
   sessionData.users = usersArray;
   var sessionDataRef = sessionDataSnapshot.ref();
   sessionDataRef.set(sessionData);

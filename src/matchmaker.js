@@ -148,7 +148,7 @@ MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
       return;
     }
     if (data.val().hostPeerId == peerId) {
-      findNewHostPeerId.call(self, sessionId, peerId, switchToNewHost);
+      findNewHostPeerId.call(self, sessionId, peerId);
     }
 
     // Firebase weirdness: the users array can still have undefined elements
@@ -314,7 +314,7 @@ function processMessageEvent(event) {
   }
 }
 
-function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
+function findNewHostPeerId(sessionId, existingHostPeerId) {
   var self = this;
 
   // reset the hostPeerId so it prevents the leaving host's browser
@@ -338,10 +338,10 @@ function findNewHostPeerId(sessionId, existingHostPeerId, callback) {
     for (var i = 0; i < users.length; i++) {
       if (users[i] && users[i].peerId != existingHostPeerId) {
         // we've found a new user to be the host, return their id
-        callback(sessionId, users[i].peerId);
+        this.switchToNewHost(sessionId, users[i].peerId);
       }
     }
-    callback(sessionId, null);
+    this.switchToNewHost(sessionId, null);
   });
 }
 
@@ -363,6 +363,7 @@ function createNewSessionInFirebase(username, peerId, sessionData) {
   var newAvailableSessionDataRef = this.sessionRef.child(this.AVAILABLE_SESSIONS_LOCATION).child(sessionData.id);
   newAvailableSessionDataRef.set(sessionData.id);
   this.joinedSession = sessionData.id;
+  this.userSlot = 0;
   initializeServerPing.call(this);
 }
 
@@ -402,7 +403,8 @@ function doneGettingSessionData(sessionDataSnapshot, username, peerId, joinedSes
       usersArray.push(sessionData.users[i]);
     }
   }
-  usersArray.push(newUser);
+  var newLength = usersArray.push(newUser);
+  this.userSlot = newLength - 1;
   sessionData.users = usersArray;
   var sessionDataRef = sessionDataSnapshot.ref();
   sessionDataRef.set(sessionData);

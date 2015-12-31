@@ -266,6 +266,8 @@ function SmugglersTown(firebaseBaseUrl) {
   });
   this.peer.on('connection', connectedToPeer.bind(this));
   this.ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 30 * 1000;
+
+  this._connectionTimers = {}
 }
 
 /**
@@ -778,6 +780,7 @@ function connectToPeer(otherUserPeerId) {
   var peerJsConnection = this.peer.connect(otherUserPeerId);
   peerJsConnection.on('open', function() {
     console.log('connection open');
+    clearTimeout(self._connectionTimers[otherUserPeerId])
     connectedToPeer.call(self, peerJsConnection);
   });
   peerJsConnection.on('error', function(err) {
@@ -785,6 +788,9 @@ function connectToPeer(otherUserPeerId) {
     console.log(err);
     throw "PeerJS connection error";
   });
+  this._connectionTimers[otherUserPeerId] = setTimeout(function() {
+    otherUserDisconnected.call(self, otherUserPeerId);
+  }, 5000)
 }
 
 function connectedToPeer(peerJsConnection) {
@@ -867,19 +873,12 @@ function fadeArrowToImage(imageFileName) {
 }
 
 function otherUserDisconnected(otherUserPeerId) {
-  // should be called after the peerJs connection
-  // has already been closed
-  if (!this.otherUsers[otherUserPeerId]) {
-    return;
-  }
-
-  removeUserFromTeam.call(this, otherUserPeerId);
-  removeUserFromUI.call(this, otherUserPeerId);
-
   // remove this user from the game in Firebase:
   this.matchmakerTown.removePeerFromSession(this.gameId, otherUserPeerId);
 
-  if (this.hostPeerId == otherUserPeerId) {
+
+
+  if (!this.hostPeerId || this.hostPeerId == otherUserPeerId) {
     // if that user was the host, set us as the new host
     this.hostPeerId = this.peer.id;
     this.matchmakerTown.switchToNewHost(this.gameId, this.peer.id);
@@ -890,6 +889,10 @@ function otherUserDisconnected(otherUserPeerId) {
   if (this.gameDataObject.peerIdOfCarWithItem && this.gameDataObject.peerIdOfCarWithItem == otherUserPeerId && this.hostPeerId == this.peer.id) {
     randomlyPutItems.call(this);
   }
+
+
+  removeUserFromTeam.call(this, otherUserPeerId);
+  removeUserFromUI.call(this, otherUserPeerId);
 
   // delete that user's data
   delete this.otherUsers[otherUserPeerId];
@@ -918,7 +921,7 @@ function removeUserFromTeam(userPeerId) {
 
 function removeUserFromUI(peerId) {
   // remove the other user's car from the map
-  this.otherUsers[peerId].car.marker.setMap(null);
+  this.otherUsers[peerId] && this.otherUsers[peerId].car.marker.setMap(null);
 
   // if their team has no more users, grey out
   // their score box
