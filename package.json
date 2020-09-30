@@ -5,18 +5,18 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "browserify": "^12.0.1",
-    "browserify-versionify": "^1.0.6",
-    "concat-stream": "^1.5.1",
-    "dezalgo": "^1.0.3",
-    "ecstatic": "^1.4.0",
-    "envify": "^3.4.0",
-    "firebase": "^2.3.2",
-    "jquery": "2.1.0",
-    "jquery-ui": "^1.10.5",
-    "peerjs": "^0.3.14",
-    "queue": "^3.1.0",
-    "txtify2": "^2.0.0",
-    "uglify-js": "^2.6.1"
+    "browserify": "16.5.2",
+    "browserify-versionify": "1.0.6",
+    "concat-stream": "2.0.0",
+    "dezalgo": "1.0.3",
+    "ecstatic": "4.1.4",
+    "envify": "3.4.0",
+    "firebase": "7.21.1",
+    "jquery": "^3.5.1",
+    "jquery-ui": "^1.12.1",
+    "peerjs": "0.3.16",
+    "queue": "3.1.0",
+    "txtify2": "2.0.0",
+    "uglify-js": "2.6.1"
   }
 }

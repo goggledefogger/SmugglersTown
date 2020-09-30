@@ -7,8 +7,20 @@
  */
 module.exports = MatchmakerTown;
 
-var Firebase = require('firebase')
+const firebase = require('firebase/app');
+require('firebase/database');
+
 var Utilities = require('./utilities')
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAA616Uuy-kMR40sQgbgAAJatz4zlPF61E",
+  authDomain: "smugglerstown.firebaseapp.com",
+  databaseURL: "https://smugglerstown.firebaseio.com",
+  projectId: "smugglerstown",
+  storageBucket: "smugglerstown.appspot.com",
+  messagingSenderId: "826181967588",
+  appId: "1:826181967588:web:a8d253cc8e3142bb1c16f1"
+};
 
 /**
  *  constructor
@@ -19,7 +31,10 @@ function MatchmakerTown(firebaseBaseUrl) {
 
   // The root of your session data.
   this.SESSION_LOCATION = firebaseBaseUrl;
-  this.sessionRef = new Firebase(this.SESSION_LOCATION);
+
+  this.app = firebase.initializeApp(firebaseConfig);
+
+  this.sessionRef = firebase.database().ref();
 
   this.AVAILABLE_SESSIONS_LOCATION = 'available_sessions';
   this.FULL_SESSIONS_LOCATION = 'full_sessions';
@@ -158,7 +173,7 @@ MatchmakerTown.prototype.removePeerFromSession = function(sessionId, peerId) {
     data.child('users').forEach(function(childSnapshot) {
       // if we've found the ref that represents the given peer, remove it
       if (childSnapshot.val() && childSnapshot.val().peerId == peerId) {
-        childSnapshot.ref().remove();
+        childSnapshot.ref.remove();
         // if this user was the last one in the session, now there are 0,
         // so delete the session
         if (numUsersInSession == 1) {
@@ -289,8 +304,8 @@ function cleanupSessions() {
       }
 
       if (shouldDeleteSession) {
-        deleteSession.call(self, childSnapshot.key());
-        childSnapshot.ref().remove();
+        deleteSession.call(self, childSnapshot.key);
+        childSnapshot.ref.remove();
       }
     });
   });
@@ -406,7 +421,7 @@ function doneGettingSessionData(sessionDataSnapshot, username, peerId, joinedSes
   var newLength = usersArray.push(newUser);
   this.userSlot = newLength - 1;
   sessionData.users = usersArray;
-  var sessionDataRef = sessionDataSnapshot.ref();
+  var sessionDataRef = sessionDataSnapshot.ref;
   sessionDataRef.set(sessionData);
   console.log('joining session ' + sessionData.id);
   // Firebase weirdness: the users array can still have undefined elements
