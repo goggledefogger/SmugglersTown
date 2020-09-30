@@ -9,7 +9,7 @@
     "browserify-versionify": "^1.0.6",
     "concat-stream": "^1.5.1",
     "dezalgo": "^1.0.3",
-    "ecstatic": "^1.4.0",
+    "ecstatic": "^4.1.4",
     "envify": "^3.4.0",
     "firebase": "^2.3.2",
     "jquery": "2.1.0",
