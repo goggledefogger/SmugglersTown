@@ -256,9 +256,7 @@ function SmugglersTown(firebaseBaseUrl) {
 
 
   // peer JS connection (for multiplayer webRTC)
-  this.peer = new Peer({
-    key: 'j3m0qtddeshpk3xr'
-  });
+  this.peer = new Peer();
   this.peer.on('open', function(id) {
     console.log('My peer ID is: ' + id);
     $('#peer-id').text(id);
