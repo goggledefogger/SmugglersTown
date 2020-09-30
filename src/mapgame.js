@@ -10,7 +10,7 @@
  *  deps
  */
 var $ = require('jquery')
-require('jquery-ui')
+// require('jquery-ui')
 var Utilities = require('./utilities.js')
 var MatchmakerTown = require('./matchmaker.js');
 var QueryString = require('./QueryString')
@@ -345,6 +345,11 @@ SmugglersTown.prototype.onKeyUp = function(evt) {
 
 function initializeBoostBar() {
   $(function() {
+    // workaround since jquery-ui progress bar stopped working
+    if (!$("#boost-bar").progressbar) {
+      return;
+    }
+
     $("#boost-bar").progressbar({
       value: 100
     });
@@ -674,6 +679,12 @@ function putNewItemOnMap(location, itemId) {
 
 function handleBoosting() {
   this.maxSpeed = this.MAX_NORMAL_SPEED;
+
+  if (!$('#boost-bar').progressbar) {
+    return this.maxSpeed;
+  }
+
+
   if ($('#boost-bar').progressbar("value") || $('#boost-bar').progressbar("value") == 0) {
     var boostBarValue = $('#boost-bar').progressbar("value");
     if (this.ctrlDown && boostBarValue > 0) {
