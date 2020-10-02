@@ -230,8 +230,7 @@ function SmugglersTown(firebaseBaseUrl) {
   // };
   this.teamTownOtherCarIcon = {
     path: 'M63 630c-32 -13 -38 -48 -36 -207 2 -119 0 -143 -12 -143 -19 0 -19 -14 0 -30 13 -10 14 -27 9 -85 -5 -60 -3 -78 12 -104 48 -82 200 -82 248 0 15 26 17 44 12 104 -5 58 -4 75 9 85 20 16 19 30 -1 30 -14 0 -15 13 -9 109 8 120 1 199 -20 228 -11 15 -29 18 -102 20 -48 2 -98 -2 -110 -7z',
-    origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(16, 32),
+    anchor: new google.maps.Point(150, 300),
     fillColor: 'yellow',
     scale: 0.1,
     fillOpacity: 0.8,
@@ -240,8 +239,7 @@ function SmugglersTown(firebaseBaseUrl) {
   this.teamCrushOtherCarIcon = {
     path: 'M63 630c-32 -13 -38 -48 -36 -207 2 -119 0 -143 -12 -143 -19 0 -19 -14 0 -30 13 -10 14 -27 9 -85 -5 -60 -3 -78 12 -104 48 -82 200 -82 248 0 15 26 17 44 12 104 -5 58 -4 75 9 85 20 16 19 30 -1 30 -14 0 -15 13 -9 109 8 120 1 199 -20 228 -11 15 -29 18 -102 20 -48 2 -98 -2 -110 -7z',
     fillColor: 'red',
-    origin: new google.maps.Point(0, 0),
-    anchor: new google.maps.Point(16, 32),
+    anchor: new google.maps.Point(150, 300),
     scale: 0.1,
     fillOpacity: 0.8,
     strokeWeight: 3
