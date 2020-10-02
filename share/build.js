@@ -33330,15 +33330,29 @@ function SmugglersTown(firebaseBaseUrl) {
   };
 
 
+  var self = this;
   // peer JS connection (for multiplayer webRTC)
-  this.peer = new Peer({
-    secure: true,
-    port: 443
+  // if (location.hostname === 'localhost'){
+  //   this.peer = new Peer();
+  // } else {
+    this.peer = new Peer({
+      secure: true,
+      port: 9000,
+      host: 'towntechnology.space'
+    });
+  // }
+  this.peer.on('error', function(err) {
+    console.error(err);
   });
   this.peer.on('open', function(id) {
     console.log('My peer ID is: ' + id);
     $('#peer-id').text(id);
     $('#peer-connection-status').text('waiting for a smuggler to battle...');
+    // to help with the case where the map may be done loading early
+    if (!this.hasDispatchedPeerIdReady) {
+      this.hasDispatchedPeerIdReady = true;
+      document.dispatchEvent(new Event('peer_id_ready'));
+    }
   });
   this.peer.on('connection', connectedToPeer.bind(this));
   this.ACTIVE_CONNECTION_TIMEOUT_IN_SECONDS = 30 * 1000;
@@ -33435,7 +33449,17 @@ function initializeBoostBar() {
 }
 
 function mapIsReady() {
-  this.matchmakerTown.joinOrCreateSession(this.username, this.peer.id, gameJoined.bind(this))
+  var self = this;
+
+  if (this.peer.id) {
+    this.matchmakerTown.joinOrCreateSession(this.username,
+      this.peer.id, gameJoined.bind(this))
+  } else {
+    document.addEventListener('peer_id_ready', function() {
+      self.matchmakerTown.joinOrCreateSession(self.username,
+        self.peer.id, gameJoined.bind(self))
+    });
+  }
 }
 
 /*
