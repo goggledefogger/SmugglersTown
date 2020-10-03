@@ -7,37 +7,45 @@ var dz = require('dezalgo')
 var concat = require('concat-stream')
 var uglify = require('uglify-js')
 var browserify = require('browserify')
+var watchify = require('watchify')
 
 var ismain = !module.parent
 
 if (ismain) {
-  buildjs(function (err) {
+  buildjs(function(err) {
     if (err) throw err
 
     console.log('javascript built successfully')
   })
 }
 
-function buildjs (cb) {
+function buildjs(cb) {
   cb = dz(cb)
 
   var b = browserify()
   b.add(__dirname + '/../src/index.js')
-  b.transform('txtify2', { extensions: [ 'html' ] })
+  b.transform('txtify2', { extensions: ['html'] })
   b.transform('envify')
   b.transform('browserify-versionify')
+  b.plugin(watchify)
 
-  b.bundle()
-    .on('error', function (err) {
-      // stock browserify errors include a stream ref that is a bit too noisy for logging
-      cb(new Error('error building client: ' + err.message))
-    })
-    .pipe(concat(function (data) {
+  b.on('update', bundle);
+  bundle();
 
-      if (process.env.NODE_ENV === 'production') {
-        data = uglify.minify(data.toString(), { fromString: true }).code
-      }
+  function bundle() {
+    console.log('bundling')
+    b.bundle()
+      .on('error', function(err) {
+        // stock browserify errors include a stream ref that is a bit too noisy for logging
+        cb(new Error('error building client: ' + err.message))
+      })
+      .pipe(concat(function(data) {
 
-      fs.writeFile(__dirname + '/../share/build.js', data, cb)
-    }))
+        if (process.env.NODE_ENV === 'production') {
+          data = uglify.minify(data.toString(), { fromString: true }).code
+        }
+
+        fs.writeFile(__dirname + '/../share/build.js', data, cb)
+      }))
+  }
 }
