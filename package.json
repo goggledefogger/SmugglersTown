@@ -17,6 +17,7 @@
     "peerjs": "0.3.16",
     "queue": "3.1.0",
     "txtify2": "2.0.0",
-    "uglify-js": "2.6.1"
+    "uglify-js": "2.6.1",
+    "watchify": "^3.11.1"
   }
 }
