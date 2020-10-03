@@ -22,6 +22,11 @@ var Peer = require('peerjs')
 module.exports = SmugglersTown;
 
 /**
+ *  constants
+ */
+TRANSFER_ANIMATION_DURATION = 300;
+
+/**
  *  constructor
  */
 function SmugglersTown(firebaseBaseUrl) {
@@ -50,8 +55,6 @@ function SmugglersTown(firebaseBaseUrl) {
 
   // default to the grand canyon, but this will be loaded from a map file
   this.mapCenter = new google.maps.LatLng(36.151103, -113.208565);
-
-
 
   // for time-based game loop
   this.now;
@@ -166,8 +169,6 @@ function SmugglersTown(firebaseBaseUrl) {
   //   numItemsReturned: 0
   // }
 
-
-
   this.collectedItem = null;
   // set the initial destination to whatever, it will be reset
   // when an item is first placed
@@ -214,20 +215,13 @@ function SmugglersTown(firebaseBaseUrl) {
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
+
   this.teamTownUserCarIcon = {
     url: '/images/car.png',
     origin: new google.maps.Point(0, 0),
     anchor: new google.maps.Point(16, 32)
   };
-  // rotated car svg path
-  // this.teamTownOtherCarIcon = {
-  //   path: 'M84 624c-52 -25 -68 -65 -60 -149 5 -58 4 -75 -9 -85 -20 -16 -19 -30 1 -30 14 0 15 -13 9 -109 -8 -120 -1 -199 20 -228 11 -15 28 -18 115 -18 87 0 104 3 115 18 21 29 28 108 20 228 -6 96 -5 109 9 109 20 0 21 14 1 30 -13 10 -14 27 -9 85 5 60 3 78 -12 104 -34 57 -131 79 -200 45z',
-  //   origin: new google.maps.Point(0, 0),
-  //   anchor: new google.maps.Point(16, 32),
-  //   fillColor: 'yellow',
-  //   scale: 0.1,
-  //   fillOpacity: 0.7
-  // };
+
   this.teamTownOtherCarIcon = {
     path: 'M63 630c-32 -13 -38 -48 -36 -207 2 -119 0 -143 -12 -143 -19 0 -19 -14 0 -30 13 -10 14 -27 9 -85 -5 -60 -3 -78 12 -104 48 -82 200 -82 248 0 15 26 17 44 12 104 -5 58 -4 75 9 85 20 16 19 30 -1 30 -14 0 -15 13 -9 109 8 120 1 199 -20 228 -11 15 -29 18 -102 20 -48 2 -98 -2 -110 -7z',
     anchor: new google.maps.Point(150, 300),
@@ -236,6 +230,7 @@ function SmugglersTown(firebaseBaseUrl) {
     fillOpacity: 0.8,
     strokeWeight: 2
   };
+
   this.teamCrushOtherCarIcon = {
     path: 'M63 630c-32 -13 -38 -48 -36 -207 2 -119 0 -143 -12 -143 -19 0 -19 -14 0 -30 13 -10 14 -27 9 -85 -5 -60 -3 -78 12 -104 48 -82 200 -82 248 0 15 26 17 44 12 104 -5 58 -4 75 9 85 20 16 19 30 -1 30 -14 0 -15 13 -9 109 8 120 1 199 -20 228 -11 15 -29 18 -102 20 -48 2 -98 -2 -110 -7z',
     fillColor: 'red',
@@ -269,17 +264,21 @@ function SmugglersTown(firebaseBaseUrl) {
     anchor: new google.maps.Point(75, 120)
   };
 
+  this.transferAnimationIcon = {
+    url: '/images/vortex.gif',
+    anchor: new google.maps.Point(50, 50)
+  }
 
   var self = this;
   // peer JS connection (for multiplayer webRTC)
   // if (location.hostname === 'localhost'){
   //   this.peer = new Peer();
   // } else {
-    this.peer = new Peer({
-      secure: true,
-      port: 9000,
-      host: 'towntechnology.space'
-    });
+  this.peer = new Peer({
+    secure: true,
+    port: 9000,
+    host: 'towntechnology.space'
+  });
   // }
   this.peer.on('error', function(err) {
     console.error(err);
@@ -815,7 +814,24 @@ function moveCar() {
     var newLng = this.map.getCenter().lng() + (this.horizontalSpeed / this.longitudeSpeedFactor);
     this.mapCenter = new google.maps.LatLng(newLat, newLng);
     this.map.setCenter(this.mapCenter);
+  }
 
+  if (this.timeOfLastTransfer) {
+    var timeSinceLastTransfer = ((new Date()).getTime()) - this.timeOfLastTransfer;
+    if (timeSinceLastTransfer < (this.timeDelayBetweenTransfers * 2)) {
+      var modifiedSpeed = this.speed * (timeSinceLastTransfer / 800.0);
+      if (this.speed < 0) {
+        this.speed = Math.max(this.speed, modifiedSpeed)
+      } else {
+        this.speed = Math.min(this.speed, modifiedSpeed)
+      }
+      var modifiedHorizontalSpeed = this.horizontalSpeed * (timeSinceLastTransfer / 800.0);
+      if (this.horizontalSpeed < 0) {
+        this.horizontalSpeed = Math.max(this.horizontalSpeed, modifiedHorizontalSpeed);
+      } else {
+        this.horizontalSpeed = Math.min(this.horizontalSpeed, modifiedHorizontalSpeed);
+      }
+    }
   }
 
   rotateCar.call(this);
@@ -1072,6 +1088,7 @@ function dataReceived(data) {
       this.gameDataObject.peerIdOfCarWithItem = data.event.toUserPeerId;
       if (data.event.toUserPeerId == this.peer.id) {
         // the item was transferred to this user
+        transferItemAnimation.call(this, { lat: this.mapCenter.lat(), lng: this.mapCenter.lng() });
         this.gameDataObject.itemObject = {
           id: data.event.id,
           location: null
@@ -1096,6 +1113,21 @@ function dataReceived(data) {
       new google.maps.LatLng(data.carLatLng.lat, data.carLatLng.lng),
       data.carRotation);
   }
+}
+
+function transferItemAnimation(location) {
+  var transferAnimationMarker = new google.maps.Marker({
+    map: this.map,
+    title: 'transfer',
+    icon: this.transferAnimationIcon,
+    // //TODO: FIX STUPID GOOGLE MAPS BUG that causes the gif marker
+    // //to mysteriously not show up sometimes
+    // optimized: false,
+    position: location
+  });
+  setTimeout(function() {
+    transferAnimationMarker.setMap(null);
+  }, TRANSFER_ANIMATION_DURATION)
 }
 
 function assignMyTeamBase() {
@@ -1287,6 +1319,7 @@ function transferItemIfCarsHaveCollided(otherCarLocation, otherUserPeerId) {
 }
 
 function transferItem(itemObjectId, fromUserPeerId, toUserPeerId) {
+  transferItemAnimation.call(this, this.otherUsers[toUserPeerId].car.location);
   console.log('item ' + itemObjectId + ' transferred from ' + fromUserPeerId + ' to ' + toUserPeerId);
   this.timeOfLastTransfer = (new Date()).getTime();
   broadcastTransferOfItem.call(this, itemObjectId, fromUserPeerId, toUserPeerId, this.timeOfLastTransfer);
