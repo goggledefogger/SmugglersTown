@@ -291,14 +291,14 @@ function cleanupSessions() {
     dataSnapshot.forEach(function(childSnapshot) {
       var shouldDeleteSession = false;
       var sessionData = childSnapshot.val();
+      // When sessionData is null the following checks would dereference it and
+      // throw, aborting cleanup of every remaining session. Skip them instead.
       if (!sessionData) {
         shouldDeleteSession = true;
-      }
-      if (sessionData.users == null || sessionData.users.length == 0) {
+      } else if (sessionData.users == null || sessionData.users.length == 0) {
         console.log('session has no users');
         shouldDeleteSession = true;
-      }
-      if (isTimeoutTooLong.call(self, sessionData.lastUpdateTime)) {
+      } else if (isTimeoutTooLong.call(self, sessionData.lastUpdateTime)) {
         console.log("session hasn't been updated since " + sessionData.lastUpdateTime);
         shouldDeleteSession = true;
       }
@@ -352,11 +352,14 @@ function findNewHostPeerId(sessionId, existingHostPeerId) {
 
     for (var i = 0; i < users.length; i++) {
       if (users[i] && users[i].peerId != existingHostPeerId) {
-        // we've found a new user to be the host, return their id
-        this.switchToNewHost(sessionId, users[i].peerId);
+        // we've found a new user to be the host, assign them and stop.
+        // `this` here is the Firebase callback context, not the matchmaker,
+        // so use the captured `self`. Returning avoids the loop reassigning
+        // the host on every remaining user.
+        self.switchToNewHost(sessionId, users[i].peerId);
+        return;
       }
     }
-    this.switchToNewHost(sessionId, null);
   });
 }
 

@@ -446,11 +446,13 @@ function updateTeamUsernamesInUI(teamUsernamesJqueryElem, userObjectsArray) {
   // clear the current list of usernames
   teamUsernamesJqueryElem.empty();
   for (var i = 0; i < userObjectsArray.length; i++) {
-    var newJqueryElem = $($.parseHTML(
-      '<li id="username-' +
-      userObjectsArray[i].peerId +
-      '">' + userObjectsArray[i].username + '</li>'
-    ));
+    // Usernames come from other players (chosen via prompt, synced over the
+    // network), so they are untrusted. Build the node with .text()/.attr()
+    // instead of interpolating into an HTML string — $.parseHTML would run any
+    // markup (e.g. <img onerror=...>) as stored XSS in every other player's tab.
+    var newJqueryElem = $('<li>')
+      .attr('id', 'username-' + userObjectsArray[i].peerId)
+      .text(userObjectsArray[i].username);
     $(teamUsernamesJqueryElem).append(newJqueryElem);
   }
 }
